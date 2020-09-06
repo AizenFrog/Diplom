@@ -1,1 +1,330 @@
 #include "probability.h"
+#include <cmath>
+#include <memory>
+#include <iostream>
+
+double probability::getP(const size_t curState, const size_t nextState, const uint8 flow) {
+    if (curState == nextState && curState == 0)
+        return (1 - alpha[flow]) + alpha[flow] * beta[flow] * c[flow];
+    else if (curState == nextState && curState == maxCarsInFlows[flow])
+        return (1 - beta[flow]) * (1 - alpha[flow]) + alpha[flow] * beta[flow] * c[flow] + alpha[flow] * beta[flow] * (1 - c[flow])
+            + alpha[flow] * (1 - beta[flow]) * c[flow] + alpha[flow] * (1 - beta[flow]) * (1 - c[flow]);
+    else if (curState == nextState)
+        return (1 - alpha[flow]) * (1 - beta[flow]) + alpha[flow] * beta[flow] * c[flow];
+    else if (curState == nextState - 1 && nextState == maxCarsInFlows[flow])
+        return alpha[flow] * (1 - beta[flow]) * c[flow] + alpha[flow] * beta[flow] * (1 - c[flow])
+            + alpha[flow] * (1 - beta[flow]) * (1 - c[flow]);
+    else if (curState == nextState - 1)
+        return alpha[flow] * (1 - beta[flow]) * c[flow] + alpha[flow] * beta[flow] * (1 - c[flow]);
+    else if (curState == nextState - 2)
+        return alpha[flow] * (1 - beta[flow]) * (1 - c[flow]);
+    else if (curState == nextState + 1)
+        return (1 - alpha[flow]) * beta[flow];
+    return 0.0;
+}
+
+double probability::getQ(const size_t curState, const size_t nextState, const uint8 flow) {
+    if (curState == nextState && curState == maxCarsInFlows[flow])
+        return 1;
+    else if (curState == nextState)
+        return 1 - alpha[flow];
+    else if (curState == nextState - 1 && nextState == maxCarsInFlows[flow])
+        return alpha[flow] * c[flow] + alpha[flow] * (1 - c[flow]);
+    else if (curState == nextState - 1)
+        return alpha[flow] * c[flow];
+    else if (curState == nextState - 2)
+        return alpha[flow] * (1 - c[flow]);
+    return 0.0;
+}
+
+State* probability::Flow::st = new ThirdS;
+
+probability::Flow::Flow(uint8 flow) : P(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
+    Q(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]), flow(flow) {}
+
+probability::Flow::~Flow() {
+    delete[] P;
+    delete[] Q;
+}
+
+double* probability::Flow::Powermatrix(double* const mat, const uint8 power) const {
+    uint8 locPower = 1;
+    double* res = new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]{ 0.0 };
+    double* tmp = new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)];
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j)
+            tmp[i * (maxCarsInFlows[flow] + 1) + j] = mat[i * (maxCarsInFlows[flow] + 1) + j];
+    while (locPower != power) {
+        if (locPower != 1) {
+            double* temple = tmp;
+            tmp = res;
+            res = temple;
+        }
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                res[i * (maxCarsInFlows[flow] + 1) + j] = 0.0;
+                for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+                    res[i * (maxCarsInFlows[flow] + 1) + j] += tmp[i * (maxCarsInFlows[flow] + 1) + k]
+                        * mat[k * (maxCarsInFlows[flow] + 1) + j];
+                }
+            }
+        ++locPower;
+    }
+    if (power > 1) {
+        delete[] tmp;
+        return res;
+    } else {
+        delete[] res;
+        return tmp;
+    }
+}
+
+void probability::Flow::PFormation() {
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+            P[(maxCarsInFlows[flow] + 1) * i + j] = getP(i, j, flow);
+        }
+    }
+}
+
+void probability::Flow::QFormation() {
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+            Q[(maxCarsInFlows[flow] + 1) * i + j] = getQ(i, j, flow);
+        }
+    }
+}
+
+void probability::Flow::changeState(mode md) {
+    delete st;
+    switch (md) {
+    case first:
+        st = new FirstS;
+        break;
+    case second:
+        st = new SecondS;
+        break;
+    case third:
+        st = new ThirdS;
+        break;
+    default:
+        st = new ThirdS;
+        break;
+    }
+}
+
+void probability::Flow::printP() {
+    std::cout << "\t";
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j)
+            std::cout << P[i * (maxCarsInFlows[flow] + 1) + j] << "\t";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void probability::Flow::printQ() {
+    std::cout << "\t";
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j)
+            std::cout << Q[i * (maxCarsInFlows[flow] + 1) + j] << "\t";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void probability::Flow::getMarginalProbability(const double* marginalVector, double* const res) const {
+    if (flow == 0) {
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            res[i] = 0.0;
+            for (size_t j = i; j < statesCount; j += maxCarsInFlows[flow] + 1)
+                res[i] += marginalVector[j];
+        }
+    } else {
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            res[i] = 0.0;
+            for (size_t j = i * (maxCarsInFlows[0] + 1); j < (i + 1) * (maxCarsInFlows[0] + 1); ++j)
+                res[i] += marginalVector[j];
+        }
+    }
+}
+
+double probability::Flow::expectedValue(const double* marginalProbabilities) const {
+    double res = 0.0;
+    for (size_t i = 0; i < maxCarsInFlows[flow] + 1; ++i)
+        res += marginalProbabilities[i] * i;
+    return res;
+}
+
+double probability::Flow::variance(const double* marginalProbabilities) const {
+    double ev = expectedValue(marginalProbabilities);
+    double res = 0.0;
+    for (size_t i = 0; i < maxCarsInFlows[flow] + 1; ++i)
+        res += marginalProbabilities[i] * ((i - ev) * (i - ev));
+    return res;
+}
+
+double probability::ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector) {
+    double res = 0.0;
+    double* mp1 = new double[maxCarsInFlows[f1.flow] + 1];
+    double* mp2 = new double[maxCarsInFlows[f2.flow] + 1];
+    f1.getMarginalProbability(marginalVector, mp1);
+    f2.getMarginalProbability(marginalVector, mp2);
+    double ev1 = f1.expectedValue(mp1);
+    double ev2 = f2.expectedValue(mp2);
+    double* value = new double[statesCount];
+    for (size_t i = 0; i < maxCarsInFlows[f1.flow] + 1; ++i)
+        for (size_t j = 0; j < maxCarsInFlows[f2.flow] + 1; ++j)
+            value[i * (maxCarsInFlows[f2.flow] + 1) + j] = (i - ev1) * (j - ev2);
+    for (size_t i = 0; i < statesCount; ++i)
+        res += marginalVector[i] * value[i];
+    delete[] value;
+    delete[] mp2;
+    delete[] mp1;
+    return res;
+}
+
+void probability::transitionMatrix(const Flow& f1, const Flow& f2, double* res) {
+    std::unique_ptr<double[]> P1(f1.Powermatrix(f1.P, Flow::st->getP1()));
+    std::unique_ptr<double[]> Q1(f1.Powermatrix(f1.Q, Flow::st->getQ1() + Flow::st->getP2() + Flow::st->getQ2()));
+    std::unique_ptr<double[]> P2(f2.Powermatrix(f2.P, Flow::st->getP2()));
+    std::unique_ptr<double[]> Q2(f2.Powermatrix(f2.Q, Flow::st->getP1() + Flow::st->getQ1()));
+    double* res1 = new double[(static_cast<size_t>(maxCarsInFlows[0]) + 1) * (maxCarsInFlows[0] + 1)]{ 0.0 };
+    matrixMultiplication(P1.get(), Q1.get(), res1, maxCarsInFlows[0] + 1);
+    double* tmp = new double[(static_cast<size_t>(maxCarsInFlows[1]) + 1) * (maxCarsInFlows[1] + 1)]{ 0.0 };
+    matrixMultiplication(Q2.get(), P2.get(), tmp, maxCarsInFlows[1] + 1);
+    double* res2 = new double[(static_cast<size_t>(maxCarsInFlows[1]) + 1) * (maxCarsInFlows[1] + 1)]{ 0.0 };
+    Q2.reset(f2.Powermatrix(f2.Q, Flow::st->getQ2()));
+    matrixMultiplication(tmp, Q2.get(), res2, maxCarsInFlows[1] + 1);
+    delete[] tmp;
+
+    for (size_t i = 0; i <= maxCarsInFlows[0]; ++i) {
+        for (size_t j = 0; j <= maxCarsInFlows[1]; ++j) {
+            for (size_t k = 0; k <= maxCarsInFlows[0]; ++k) {
+                for (size_t g = 0; g <= maxCarsInFlows[1]; ++g) {
+                    res[(i * (maxCarsInFlows[1] + 1) + j) * statesCount + (g * (maxCarsInFlows[0] + 1) + k)] =
+                        res1[i * (maxCarsInFlows[0] + 1) + k] * res2[j * (maxCarsInFlows[1] + 1) + g];
+                }
+            }
+        }
+    }
+
+    delete[] res1;
+    delete[] res2;
+}
+
+double isZero(const double number) {
+    if (std::abs(number) < 0.0000000001) {
+        return 0.0;
+    }
+    else {
+        return number;
+    }
+}
+
+void probability::VectorOfMarginalProbability(double* const trm, double* const res) {
+    double* coef = new double[statesCount - 1] { 0.0 };
+    double* transposedMatrix = new double[statesCount * statesCount];
+    for (size_t i = 0; i < statesCount; ++i)
+        for (size_t j = 0; j < statesCount; ++j)
+            transposedMatrix[j * statesCount + i] = trm[i * statesCount + j];
+    for (int k = 0; k < statesCount - 1; ++k) {
+        transposedMatrix[k * statesCount + k] -= 1.0;
+        double leaderElem = transposedMatrix[k * statesCount + k];
+        for (int rows = k + 1; rows < statesCount - 1; ++rows) {
+            double leaderRow = transposedMatrix[rows * statesCount + k];
+            for (int cols = k; cols < statesCount; ++cols) {
+                transposedMatrix[rows * statesCount + cols] = isZero(transposedMatrix[rows * statesCount + cols] +
+                    transposedMatrix[k * statesCount + cols] * std::abs(leaderRow / leaderElem));
+            }
+        }
+    }
+    coef[statesCount - 2] = isZero(-(transposedMatrix[statesCount * (statesCount - 2) + (statesCount - 1)] /
+        transposedMatrix[statesCount * (statesCount - 2) + (statesCount - 2)]));
+    for (long long i = statesCount - 3; i >= 0; --i) {
+        double result = 0.0;
+        for (size_t j = statesCount - 2; j >= i + 1; --j)
+            result += isZero(coef[j] * transposedMatrix[statesCount * i + j]);
+        result += transposedMatrix[statesCount * i + (statesCount - 1)];
+        coef[i] = isZero(-(result / transposedMatrix[i * statesCount + i]));
+    }
+    for (size_t i = 0; i < statesCount - 1; ++i)
+        res[statesCount - 1] += coef[i];
+    res[statesCount - 1] += 1.0;
+    res[statesCount - 1] = 1 / res[statesCount - 1];
+    double check = res[statesCount - 1];
+    for (size_t i = 0; i < statesCount - 1; ++i) {
+        res[i] = coef[i] * res[statesCount - 1];
+        check += res[i];
+    }
+    // std::cout << check << std::endl;
+    delete[] coef;
+    delete[] transposedMatrix;
+}
+
+State::State() : p1(0), q1(0), p2(0), q2(0) {}
+
+uint8 State::getP1() {
+    return p1;
+}
+
+uint8 State::getQ1() {
+    return q1;
+}
+
+uint8 State::getP2() {
+    return p2;
+}
+
+uint8 State::getQ2() {
+    return q2;
+}
+
+State::State(const uint8 _p1, const uint8 _q1, const uint8 _p2, const uint8 _q2)
+    : p1(_p1), q1(_q1), p2(_p2), q2(_q2) {}
+
+State::~State() {}
+
+FirstS::FirstS() : State(3, 1, 2, 1) {}
+
+SecondS::SecondS() : State(2, 1, 3, 1) {}
+
+ThirdS::ThirdS() : State(2, 1, 2, 1) {}
+
+void matrixMultiplication(const double* mat1, const double* mat2, double* const res, const size_t size) {
+    for (size_t i = 0; i < size; ++i)
+        for (size_t j = 0; j < size; ++j)
+            for (size_t k = 0; k < size; ++k)
+                res[i * size + j] += mat1[i * size + k] * mat2[k * size + j];
+}
+
+void printMatrix(const double* mat, const size_t size) {
+    std::cout << "\t";
+    for (size_t i = 0; i < size; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i < size; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j < size; ++j)
+            std::cout << mat[i * size + j] << "\t";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void printVector(const double* vec, const size_t size) {
+    for (size_t i = 0; i < size; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i < size; ++i)
+        std::cout << vec[i] << "\t";
+    std::cout << std::endl;
+}
