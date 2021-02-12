@@ -58,6 +58,10 @@ namespace probability {
 
     double getQ(const size_t curState, const size_t nextState, const uint8 flow);
 
+    double getG(const size_t curState, const size_t nextState, const uint8 flow);
+
+    double getH(const size_t curState, const size_t nextState, const uint8 flow);
+
     class Flow {
     public:
         Flow(uint8 flow);
@@ -65,17 +69,24 @@ namespace probability {
         double* Powermatrix(double* const mat, const uint8 power) const;
         void PFormation();
         void QFormation();
+        void GFormation();
+        void HFormation();
         static void changeState(mode md);
         void printP();
         void printQ();
+        void printG();
+        void printH();
         void getMarginalProbability(const double* marginalVector, double* const res) const;
         double expectedValue(const double* marginalProbabilities) const;
+        void VectorH(double* currentH) const;
         double variance(const double* marginalProbabilities) const;
         friend double ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector);
         friend void transitionMatrix(const Flow& f1, const Flow& f2, double* const res);
     private:
         double* P;
         double* Q;
+        double* G;
+        double* H;
         uint8 flow;
         static State* st;
     };
@@ -83,6 +94,8 @@ namespace probability {
     double ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector);
 
     void transitionMatrix(const Flow& f1, const Flow& f2, double* const res);
+
+    void ExpectedValueOfRequestTime(const double* vectorH1, const double* vectorH2, double* Z);
 
     void VectorOfMarginalProbability(double* const trm, double* const res);
 }

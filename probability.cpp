@@ -37,14 +37,46 @@ double probability::getQ(const size_t curState, const size_t nextState, const ui
     return 0.0;
 }
 
+double probability::getG(const size_t curState, const size_t nextState, const uint8 flow) {
+    //if (curState == nextState && curState == maxCarsInFlows[flow])
+    //    return 1;
+    if (curState == nextState && curState == 0)
+        return 0.0;
+    else if (curState == nextState)
+        return curState;
+    else if (curState == nextState - 1)
+        return static_cast<double>(curState) + 0.5;
+    else if (curState == nextState - 2)
+        return curState + 1;
+    return 0.0;
+}
+
+double probability::getH(const size_t curState, const size_t nextState, const uint8 flow) {
+    if (curState == nextState && curState == 0)
+        return (alpha[flow] * c[flow] * beta[flow]) / (4 * (1 - alpha[flow] + alpha[flow] * c[flow] * beta[flow]));
+    else if (curState == nextState)
+        return curState;
+    else if (curState == nextState - 1)
+        return static_cast<double>(curState) + 0.5;
+    else if (curState == nextState - 2)
+        return curState + 1;
+    else if (curState == nextState + 1)
+        return static_cast<double>(curState) - 0.5;
+    return 0.0;
+}
+
 State* probability::Flow::st = new ThirdS;
 
 probability::Flow::Flow(uint8 flow) : P(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
-    Q(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]), flow(flow) {}
+    Q(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]), flow(flow),
+    G(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
+    H(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]) {}
 
 probability::Flow::~Flow() {
     delete[] P;
     delete[] Q;
+    delete[] G;
+    delete[] H;
 }
 
 double* probability::Flow::Powermatrix(double* const mat, const uint8 power) const {
@@ -95,6 +127,22 @@ void probability::Flow::QFormation() {
     }
 }
 
+void probability::Flow::GFormation() {
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+            G[(maxCarsInFlows[flow] + 1) * i + j] = getG(i, j, flow);
+        }
+    }
+}
+
+void probability::Flow::HFormation() {
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+            H[(maxCarsInFlows[flow] + 1) * i + j] = getH(i, j, flow);
+        }
+    }
+}
+
 void probability::Flow::changeState(mode md) {
     delete st;
     switch (md) {
@@ -141,6 +189,33 @@ void probability::Flow::printQ() {
     std::cout << std::endl;
 }
 
+void probability::Flow::printG() {
+    std::cout << "\t";
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j)
+            std::cout << G[i * (maxCarsInFlows[flow] + 1) + j] << "\t";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void probability::Flow::printH() {
+    std::cout << "\t";
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j)
+            std::cout << H[i * (maxCarsInFlows[flow] + 1) + j] << "\t";
+        std::cout << std::endl;
+    }
+}
+
 void probability::Flow::getMarginalProbability(const double* marginalVector, double* const res) const {
     if (flow == 0) {
         for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
@@ -162,6 +237,44 @@ double probability::Flow::expectedValue(const double* marginalProbabilities) con
     for (size_t i = 0; i < maxCarsInFlows[flow] + 1; ++i)
         res += marginalProbabilities[i] * i;
     return res;
+}
+
+void probability::Flow::VectorH(double* currentH) const {
+    double* tempH = new double[maxCarsInFlows[flow] + 1] {};
+    size_t s1 = flow == 0 ? 0 : Flow::st->getP1() + Flow::st->getQ1(),
+           s2 = flow == 0 ? Flow::st->getP1() : Flow::st->getP2(),
+           s3 = flow == 0 ? Flow::st->getQ1() + Flow::st->getP2() + Flow::st->getQ2() : Flow::st->getQ2();
+    for (size_t i = 0; i < s1; ++i) {
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k)
+                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+            currentH[l] = tempH[l];
+            tempH[l] = 0.0;
+        }
+    }
+    //printVector(currentH, maxCarsInFlows[0] + 1);
+    for (size_t i = 0; i < s2; ++i) {
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            for (size_t k = 0; k <= (maxCarsInFlows[flow]); ++k)
+                tempH[l] += P[(maxCarsInFlows[flow] + 1) * l + k] * (H[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+            currentH[l] = tempH[l];
+            tempH[l] = 0.0;
+        }
+    }
+    //printVector(currentH, maxCarsInFlows[0] + 1);
+    for (size_t i = 0; i < s3; ++i) {
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k)
+                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+            currentH[l] = tempH[l];
+            tempH[l] = 0.0;
+        }
+    }
+    //printVector(currentH, maxCarsInFlows[0] + 1);
+    delete[] tempH;
 }
 
 double probability::Flow::variance(const double* marginalProbabilities) const {
@@ -268,6 +381,12 @@ void probability::VectorOfMarginalProbability(double* const trm, double* const r
     // std::cout << check << std::endl;
     delete[] coef;
     delete[] transposedMatrix;
+}
+
+void probability::ExpectedValueOfRequestTime(const double* vectorH1, const double* vectorH2, double* Z) {
+    for (size_t i = 0; i <= maxCarsInFlows[0]; ++i)
+        for (size_t j = 0; j <= maxCarsInFlows[1]; ++j)
+            Z[i * (maxCarsInFlows[0] + 1) + j] = vectorH1[i] + vectorH2[j];
 }
 
 State::State() : p1(0), q1(0), p2(0), q2(0) {}
