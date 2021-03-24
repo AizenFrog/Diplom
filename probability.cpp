@@ -241,9 +241,9 @@ double probability::Flow::expectedValue(const double* marginalProbabilities) con
 
 void probability::Flow::VectorH(double* currentH) const {
     double* tempH = new double[maxCarsInFlows[flow] + 1] {};
-    size_t s1 = flow == 0 ? 0 : Flow::st->getP1() + Flow::st->getQ1(),
+    size_t s1 = flow == 0 ? Flow::st->getQ1() + Flow::st->getP2() + Flow::st->getQ2() : Flow::st->getQ2(),
            s2 = flow == 0 ? Flow::st->getP1() : Flow::st->getP2(),
-           s3 = flow == 0 ? Flow::st->getQ1() + Flow::st->getP2() + Flow::st->getQ2() : Flow::st->getQ2();
+           s3 = flow == 0 ? 0 : Flow::st->getP1() + Flow::st->getQ1();
     for (size_t i = 0; i < s1; ++i) {
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
             for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k)
@@ -381,6 +381,119 @@ void probability::VectorOfMarginalProbability(double* const trm, double* const r
     // std::cout << check << std::endl;
     delete[] coef;
     delete[] transposedMatrix;
+}
+
+void probability::WeightDetermination(double* P, const double* Z, double* u) {
+    double* Q = new double[statesCount];
+    for (size_t i = 0; i < statesCount; ++i) {
+        P[i * statesCount + i] -= 1.0;
+        P[(i + 1) * statesCount - 1] = -1.0;
+        Q[i] = -Z[i];
+    }
+
+    Gausse(P, Q, u);
+    delete[] Q;
+}
+
+bool probability::SolutionImprovement(const double** P, const double** Z, const double* u, uint8* d) {
+    double min = 0.0;
+    bool change = false;
+    for (size_t i = 0; i < statesCount; ++i) {
+        uint8 index = 0;
+        for (uint8 k = 0; k < modeCount; ++k) {
+            double sum = 0.0;
+            for (size_t j = 0; j < statesCount; ++j)
+                sum += P[k][i * statesCount + j] * u[j];
+            sum += Z[k][i];
+            if (sum < min) {
+                min = sum;
+                index = k;
+            }
+        }
+        if (d[i] != index) {
+            d[i] = index;
+            change = true;
+        }
+    }
+    return change;
+}
+
+void probability::HowardAlgorithm(uint8* const modes) {
+    Flow* allFlows = static_cast<Flow*>(operator new(sizeof(Flow) * (uint32_t)numberOfFlows * modeCount));
+    for (size_t i = 0; i < (uint32_t)numberOfFlows * modeCount; ++i)
+        new(allFlows + i) Flow(i % 2);
+
+    double** trm = new double* [modeCount];
+    double** Z   = new double* [modeCount];
+
+    for (size_t i = 0; i < modeCount; ++i) {
+        trm[i] = new double[statesCount * statesCount];
+        Z[i] = new double[statesCount];
+
+        // первый поток при определенном режиме
+        allFlows[i * 2].PFormation();
+        allFlows[i * 2].QFormation();
+        allFlows[i * 2].GFormation();
+        allFlows[i * 2].HFormation();
+
+        // второй поток при определенном рижиме
+        allFlows[i * 2 + 1].PFormation();
+        allFlows[i * 2 + 1].QFormation();
+        allFlows[i * 2 + 1].GFormation();
+        allFlows[i * 2 + 1].HFormation();
+
+        transitionMatrix(allFlows[i * 2], allFlows[i * 2 + 1], trm[i]);
+        double* vectorH11 = new double[maxCarsInFlows[0] + 1]{};
+        double* vectorH12 = new double[maxCarsInFlows[1] + 1]{};
+        allFlows[i * 2].VectorH(vectorH11);
+        allFlows[i * 2 + 1].VectorH(vectorH12);
+        ExpectedValueOfRequestTime(vectorH11, vectorH12, Z[i]);
+
+        delete[] Z[i];
+        delete[] trm[i];
+    }
+
+    for (size_t i = 0; i < statesCount; ++i) {
+        double min = Z[0][i];
+        uint8 min_index = 0;
+        for (uint8 j = 1; j < modeCount; ++j)
+            if (Z[j][i] < min) {
+                min_index = j;
+                min = Z[j][i];
+            }
+        
+        new(modes + i) uint8(min_index);
+    }
+
+    double* u = new double[statesCount];
+
+    double* P = new double[statesCount * statesCount];
+    double* P_cur = new double[statesCount * statesCount];
+    double* q = new double[statesCount];
+
+    for (size_t i = 0; i < statesCount; ++i) {
+        q = Z[modes[i]];
+        for (size_t j = 0; j < statesCount; ++j)
+            P[i * statesCount + j] = P_cur[i * statesCount + j] = trm[modes[i]][i * statesCount + j];
+    }
+
+    uint8* d = new uint8[statesCount];
+    bool iter = true;
+    do {
+        WeightDetermination(P_cur, q, u);
+        iter = SolutionImprovement(trm, Z, u, d);
+    } while (iter);
+
+    delete[] d;
+    delete[] P;
+    delete[] P_cur;
+    delete[] u;
+    delete[] Z;
+    delete[] trm;
+
+    for (size_t i = 0; i < (uint32_t)numberOfFlows * modeCount; ++i)
+        (allFlows + i)->~Flow();
+    operator delete(allFlows);
 }
 
 void probability::ExpectedValueOfRequestTime(const double* vectorH1, const double* vectorH2, double* Z) {

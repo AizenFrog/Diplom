@@ -1,6 +1,6 @@
 #include "probability.h"
 #include <iostream>
-#include <boost/numeric/ublas/matrix.hpp>
+//#include <boost/numeric/ublas/matrix.hpp>
 
 int main(int argc, char** argv) {
     std::cout << "----------------First mode--------------" << std::endl;
