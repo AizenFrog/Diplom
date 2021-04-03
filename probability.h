@@ -1,6 +1,10 @@
 #ifndef PROBABILITY
 #define PROBABILITY
 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusolverDn.h>
+
 typedef unsigned char uint8;
 
 constexpr uint8 numberOfFlows = 2;
@@ -44,6 +48,8 @@ public:
     ThirdS();
 };
 
+void LinearSolver(const double* Acopy, const double* b, double* x);
+
 void matrixMultiplication(const double* mat1, const double* mat2, double* const res, const size_t size);
 
 void printMatrix(const double* mat, const size_t size);
@@ -81,7 +87,7 @@ namespace probability {
         double expectedValue(const double* marginalProbabilities) const;
         void VectorH(double* currentH) const;
         double variance(const double* marginalProbabilities) const;
-        friend double ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector);
+        friend double covariance(const Flow& f1, const Flow& f2, const double* marginalVector);
         friend void transitionMatrix(const Flow& f1, const Flow& f2, double* const res);
     private:
         double* P;
@@ -92,7 +98,7 @@ namespace probability {
         static State* st;
     };
 
-    double ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector);
+    double covariance(const Flow& f1, const Flow& f2, const double* marginalVector);
 
     void transitionMatrix(const Flow& f1, const Flow& f2, double* const res);
 
@@ -102,7 +108,7 @@ namespace probability {
 
     void WeightDetermination(double* P, const double* Z, double* u);
 
-    bool SolutionImprovement(const double** P, const double** Z, const double* u, uint8* d);
+    bool SolutionImprovement(double** P, double** Z, double* u, uint8* d);
 
     void HowardAlgorithm(uint8* const modes);
 }

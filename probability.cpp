@@ -1,7 +1,37 @@
 #include "probability.h"
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusolverDn.h>
+#include <assert.h>
+
 #include <cmath>
 #include <memory>
 #include <iostream>
+
+// ----------CUDA variables----------
+
+cusolverDnHandle_t cusolverH = nullptr;
+cublasHandle_t cublasH       = nullptr;
+
+cublasStatus_t cublas_status     = CUBLAS_STATUS_SUCCESS;
+cusolverStatus_t cusolver_status = CUSOLVER_STATUS_SUCCESS;
+
+cudaError_t cudaStat1 = cudaSuccess;
+cudaError_t cudaStat2 = cudaSuccess;
+cudaError_t cudaStat3 = cudaSuccess;
+cudaError_t cudaStat4 = cudaSuccess;
+
+double* d_A     = nullptr;
+double* d_tau   = nullptr;
+double* d_B     = nullptr;
+int* devInfo    = nullptr;
+double* d_work  = nullptr;
+int lwork_geqrf = 0;
+int lwork_ormqr = 0;
+int lwork       = 0;
+int info_gpu    = 0;
+
+// ----------------------------------
 
 double probability::getP(const size_t curState, const size_t nextState, const uint8 flow) {
     if (curState == nextState && curState == 0)
@@ -285,7 +315,7 @@ double probability::Flow::variance(const double* marginalProbabilities) const {
     return res;
 }
 
-double probability::ñovariance(const Flow& f1, const Flow& f2, const double* marginalVector) {
+double probability::covariance(const Flow& f1, const Flow& f2, const double* marginalVector) {
     double res = 0.0;
     double* mp1 = new double[maxCarsInFlows[f1.flow] + 1];
     double* mp2 = new double[maxCarsInFlows[f2.flow] + 1];
@@ -391,11 +421,11 @@ void probability::WeightDetermination(double* P, const double* Z, double* u) {
         Q[i] = -Z[i];
     }
 
-    Gausse(P, Q, u);
+    LinearSolver(P, Q, u);
     delete[] Q;
 }
 
-bool probability::SolutionImprovement(const double** P, const double** Z, const double* u, uint8* d) {
+bool probability::SolutionImprovement(double** P, double** Z, double* u, uint8* d) {
     double min = 0.0;
     bool change = false;
     for (size_t i = 0; i < statesCount; ++i) {
@@ -477,12 +507,37 @@ void probability::HowardAlgorithm(uint8* const modes) {
             P[i * statesCount + j] = P_cur[i * statesCount + j] = trm[modes[i]][i * statesCount + j];
     }
 
+    // create handle
+    cusolver_status = cusolverDnCreate(&cusolverH);
+    assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
+    cublas_status = cublasCreate(&cublasH);
+    assert(CUBLAS_STATUS_SUCCESS == cublas_status);
+
+    // copy memory to gpu
+    cudaStat1 = cudaMalloc((void**)&d_A, sizeof(double) * statesCount * statesCount);
+    cudaStat2 = cudaMalloc((void**)&d_tau, sizeof(double) * statesCount);
+    cudaStat3 = cudaMalloc((void**)&d_B, sizeof(double) * statesCount);
+    cudaStat4 = cudaMalloc((void**)&devInfo, sizeof(int));
+    assert(cudaSuccess == cudaStat1);
+    assert(cudaSuccess == cudaStat2);
+    assert(cudaSuccess == cudaStat3);
+    assert(cudaSuccess == cudaStat4);
+
     uint8* d = new uint8[statesCount];
     bool iter = true;
     do {
         WeightDetermination(P_cur, q, u);
         iter = SolutionImprovement(trm, Z, u, d);
     } while (iter);
+
+    if (d_A) cudaFree(d_A);
+    if (d_tau) cudaFree(d_tau);
+    if (d_B) cudaFree(d_B);
+    if (devInfo) cudaFree(devInfo);
+    if (d_work) cudaFree(d_work);
+    if (cublasH) cublasDestroy(cublasH);
+    if (cusolverH) cusolverDnDestroy(cusolverH);
+    cudaDeviceReset();
 
     delete[] d;
     delete[] P;
@@ -530,6 +585,93 @@ FirstS::FirstS() : State(3, 1, 2, 1) {}
 SecondS::SecondS() : State(2, 1, 3, 1) {}
 
 ThirdS::ThirdS() : State(2, 1, 2, 1) {}
+
+void LinearSolver(const double* Acopy, const double* b, double* x) {
+    /*int bufferSize = 0;
+    int* info = nullptr;
+    double* buffer = nullptr;
+    double* A = nullptr;
+    int* ipiv = nullptr; // pivoting sequence
+    int h_info = 0;
+    double time_solve;
+    cusolverStatus_t status;
+    cudaError_t error;
+
+    status = cusolverDnDgetrf_bufferSize(handler, n, n, const_cast<double*>(A), n, &bufferSize);
+
+    error = cudaMalloc(&info, sizeof(int));
+    error = cudaMalloc(&buffer, sizeof(double) * bufferSize);
+    error = cudaMalloc(&A, sizeof(double) * n * n);
+    error = cudaMalloc(&ipiv, sizeof(int) * n);
+
+    error = cudaMemcpy(A, Acopy, sizeof(double) * n * n, cudaMemcpyDeviceToDevice);
+    error = cudaMemset(info, 0, sizeof(int));
+
+    status = cusolverDnDgetrf(handler, n, n, A, n, buffer, ipiv, info);
+    error = cudaMemcpy(&h_info, info, sizeof(int), cudaMemcpyDeviceToHost);
+    if (0 != h_info) {
+        fprintf(stderr, "Error: LU factorization failed\n");
+        printf("INFO_VALUE = %d\n", h_info);
+    }
+
+    error = cudaMemcpy(x, b, sizeof(double) * n, cudaMemcpyDeviceToDevice);
+    status = cusolverDnDgetrs(handler, CUBLAS_OP_N, n, 1, A, n, ipiv, x, n, info);
+    cudaDeviceSynchronize();
+
+    if (info) cudaFree(info);
+    if (buffer) cudaFree(buffer);
+    if (A) cudaFree(A);
+    if (ipiv) cudaFree(ipiv);*/
+
+    cudaStat1 = cudaMemcpy(d_A, Acopy, sizeof(double) * statesCount * statesCount, cudaMemcpyHostToDevice);
+    cudaStat2 = cudaMemcpy(d_B, b, sizeof(double) * statesCount, cudaMemcpyHostToDevice);
+    assert(cudaSuccess == cudaStat1);
+    assert(cudaSuccess == cudaStat2);
+
+    cusolver_status = cusolverDnDgeqrf_bufferSize(cusolverH, statesCount, statesCount, d_A, statesCount, &lwork_geqrf);
+    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+    cusolver_status = cusolverDnDormqr_bufferSize(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, statesCount, 1,
+                                                  statesCount, d_A, statesCount, d_tau, d_B, statesCount, &lwork_ormqr);
+    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+    lwork = (lwork_geqrf > lwork_ormqr) ? lwork_geqrf : lwork_ormqr;
+
+    cudaStat1 = cudaMalloc((void**)&d_work, sizeof(double) * lwork);
+    assert(cudaSuccess == cudaStat1);
+
+    cusolver_status = cusolverDnDgeqrf(cusolverH, statesCount, statesCount, d_A, statesCount, d_tau, d_work, lwork, devInfo);
+    cudaStat1 = cudaDeviceSynchronize();
+    assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
+    assert(cudaSuccess == cudaStat1);
+
+    /* check if QR is good or not */
+    cudaStat1 = cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost);
+    assert(cudaSuccess == cudaStat1);
+
+    printf("after geqrf: info_gpu = %d\n", info_gpu);
+    assert(0 == info_gpu);
+
+    cusolver_status = cusolverDnDormqr(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, statesCount, 1, statesCount,
+                                       d_A, statesCount, d_tau, d_B, statesCount, d_work, lwork, devInfo);
+    cudaStat1 = cudaDeviceSynchronize();
+    assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
+    assert(cudaSuccess == cudaStat1);
+    /* check if QR is good or not */
+    cudaStat1 = cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost);
+    assert(cudaSuccess == cudaStat1);
+
+    printf("after ormqr: info_gpu = %d\n", info_gpu);
+    assert(0 == info_gpu);
+
+    const double one = 1.0;
+    cublas_status = cublasDtrsm(cublasH, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,
+                                statesCount, 1, &one, d_A, statesCount, d_B, statesCount);
+    cudaStat1 = cudaDeviceSynchronize();
+    assert(CUBLAS_STATUS_SUCCESS == cublas_status);
+    assert(cudaSuccess == cudaStat1);
+
+    cudaStat1 = cudaMemcpy(x, d_B, sizeof(double) * statesCount, cudaMemcpyDeviceToHost);
+    assert(cudaSuccess == cudaStat1);
+}
 
 void matrixMultiplication(const double* mat1, const double* mat2, double* const res, const size_t size) {
     for (size_t i = 0; i < size; ++i)

@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     std::cout << "Expected Value of the number of customers in 2-nd flow " << f12.expectedValue(mv2) << std::endl;
     std::cout << "Variance of the number of customers in 1-st flow " << f11.variance(mv1) << std::endl;
     std::cout << "Variance of the number of customers in 2-nd flow " << f12.variance(mv2) << std::endl;
-    std::cout << "Covariance of the number of customers " << probability::ñovariance(f11, f12, mv) << std::endl;
+    std::cout << "Covariance of the number of customers " << probability::covariance(f11, f12, mv) << std::endl;
     delete[] mv2;
     delete[] mv1;
     delete[] mv;
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     std::cout << "Expected Value of the number of customers in 2-nd flow " << f22.expectedValue(mv2) << std::endl;
     std::cout << "Variance of the number of customers in 1-st flow " << f21.variance(mv1) << std::endl;
     std::cout << "Variance of the number of customers in 2-nd flow " << f22.variance(mv2) << std::endl;
-    std::cout << "Covariance of the number of customers " << probability::ñovariance(f21, f22, mv) << std::endl;
+    std::cout << "Covariance of the number of customers " << probability::covariance(f21, f22, mv) << std::endl;
     delete[] mv2;
     delete[] mv1;
     delete[] mv;
