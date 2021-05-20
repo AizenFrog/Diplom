@@ -10,12 +10,12 @@
 typedef unsigned char uint8;
 
 constexpr uint8 numberOfFlows = 2;
-constexpr size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // емкость очередей
-constexpr uint8 nomberOfStates = 2 * numberOfFlows; // количество состояний обслуживающего устройства
+constexpr size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+constexpr uint8 nomberOfStates = 2 * numberOfFlows; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 constexpr size_t statesCount = (static_cast<size_t>(maxCarsInFlows[0]) + 1) * (maxCarsInFlows[1] + 1);
 constexpr uint8 modeCount = 3;
 
-enum mode { // режимы работы обслуживающего устройства
+enum mode { // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     first,
     second,
     third
@@ -60,9 +60,9 @@ static void printMatrix(const T* mat, const size_t size);
 void printVector(const double* vec, const size_t size);
 
 namespace probability {
-    const double alpha[numberOfFlows] = { 0.1, 0.05 }; // вероятность прибытия клиента в поток i
-    const double c[numberOfFlows] = { 1.0, 1.0 }; // вероятность, что в поток прибудет 1 клиент
-    const double beta[numberOfFlows] = { 0.6, 0.65 }; // вероятность завершения услуги клиента
+    const double alpha[numberOfFlows] = { 0.1, 0.05 }; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ i
+    const double c[numberOfFlows] = { 1.0, 1.0 }; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 1 пїЅпїЅпїЅпїЅпїЅпїЅ
+    const double beta[numberOfFlows] = { 0.6, 0.65 }; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
     double getP(const size_t curState, const size_t nextState, const uint8 flow);
 

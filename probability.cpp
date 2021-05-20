@@ -607,13 +607,24 @@ void probability::VectorOfMarginalProbability(double* const trm, double* const r
 
 void probability::WeightDetermination(double* P, const double* Z, double* u) {
     double* Q = new double[statesCount];
-    for (size_t i = 0; i < statesCount; ++i) {
+    // printVector(Z, statesCount);
+    /*for (size_t i = 0; i < statesCount; ++i) {
         P[i * statesCount + i] -= 1.0;
         P[(i + 1) * statesCount - 1] = -1.0;
         Q[i] = -Z[i];
     }
 
-    LinearSolver(P, Q, u);
+    LinearSolver(P, Q, u);*/
+    for (size_t i = 0; i < statesCount - 1; ++i)
+        P[i * statesCount + statesCount - 1] = -1.0;
+    P[(statesCount - 1) * statesCount + statesCount - 1] = 0.0;
+    for (size_t i = 0; i < statesCount; ++i) {
+        for (size_t j = 0; j < statesCount; ++j) {
+            P[i * statesCount + j] = -P[i * statesCount + j];
+        }
+        P[i * statesCount + i] = 1.0 - P[i * statesCount + i];
+    }
+    LinearSolver(P, Z, u);
     delete[] Q;
 }
 
@@ -655,13 +666,13 @@ void probability::HowardAlgorithm(uint8* const modes) {
         trm[i] = new double[statesCount * statesCount];
         Z[i] = new double[statesCount];
 
-        // первый поток при определенном режиме
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         allFlows[i * 2].PFormation();
         allFlows[i * 2].QFormation();
         allFlows[i * 2].GFormation();
         allFlows[i * 2].HFormation();
 
-        // второй поток при определенном рижиме
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         allFlows[i * 2 + 1].PFormation();
         allFlows[i * 2 + 1].QFormation();
         allFlows[i * 2 + 1].GFormation();
