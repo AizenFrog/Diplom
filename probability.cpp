@@ -7,6 +7,7 @@
 #include <cmath>
 #include <memory>
 #include <iostream>
+#include <random>
 
 // ----------CUDA variables----------
 
@@ -32,6 +33,38 @@ int lwork       = 0;
 int info_gpu    = 0;
 
 // ----------------------------------
+
+void MatrixGenerate(double* A, double* b, const size_t size) {
+    std::uniform_real_distribution<double> unif_f(0.0, 1.0);
+    std::default_random_engine re;
+    for (int i = 0; i < size * size; ++i) {
+        float num_f = unif_f(re);
+        A[i] = num_f;
+    }
+    for (int i = 0; i < size; ++i) {
+        float num_f = unif_f(re);
+        b[i] = static_cast<double>(1.0 - num_f);
+    }
+}
+
+bool CheckResult(double* A, double* b, double* x, const size_t size, const double eps) {
+    for (size_t i = 0; i < size; ++i) {
+        double b_res = 0.0;
+        for (size_t j = 0; j < size; ++j)
+            b_res += A[i * size + j] * x[j];
+        if (std::fabs(b_res - b[i]) / std::fabs(b_res) > eps) {
+            std::cout << "i - " << i << ", " << b_res << " - " << b[i] << "\n";
+            //return false;
+        }
+    }
+    return true;
+}
+
+void MatrixTranspose(const double* src, double* dst, const size_t size) {
+    for (size_t i = 0; i < size; ++i)
+        for (size_t j = 0; j < size; ++j)
+            dst[j * size + i] = src[i * size + j];
+}
 
 double probability::getP(const size_t curState, const size_t nextState, const uint8 flow) {
     if (curState == nextState && curState == 0)
@@ -95,6 +128,57 @@ double probability::getH(const size_t curState, const size_t nextState, const ui
     return 0.0;
 }
 
+namespace probability {
+
+    double getp(const size_t curState, const size_t nextState, const uint8 flow) {
+        if (curState == nextState && curState == 0)
+            return (1 - alpha[flow]) + alpha[flow] * beta[flow];
+        else if (curState == nextState && curState == maxCarsInFlows[flow])
+            return (1 - beta[flow]) + alpha[flow] * beta[flow];
+        else if (curState == nextState)
+            return (1 - alpha[flow]) * (1 - beta[flow]) + alpha[flow] * beta[flow];
+        else if (curState == nextState - 1)
+            return alpha[flow] * (1 - beta[flow]);
+        else if (curState == nextState + 1)
+            return (1 - alpha[flow]) * beta[flow];
+        return 0.0;
+    }
+
+    double getq(const size_t curState, const size_t nextState, const uint8 flow) {
+        if (curState == nextState && curState == maxCarsInFlows[flow])
+            return 1;
+        else if (curState == nextState)
+            return 1 - alpha[flow];
+        else if (curState == nextState - 1)
+            return alpha[flow];
+        return 0.0;
+    }
+
+    double getg(const size_t curState, const size_t nextState, const uint8 flow) {
+        //if (curState == nextState && curState == maxCarsInFlows[flow])
+        //    return 1;
+        if (curState == nextState && curState == 0)
+            return 0.0;
+        else if (curState == nextState)
+            return curState;
+        else if (curState == nextState - 1)
+            return static_cast<double>(curState) + 0.5;
+        return 0.0;
+    }
+
+    double geth(const size_t curState, const size_t nextState, const uint8 flow) {
+        if (curState == nextState && curState == 0)
+            return (alpha[flow] * beta[flow]) / (4 * (1 - alpha[flow] + alpha[flow] * beta[flow]));
+        else if (curState == nextState)
+            return curState;
+        else if (curState == nextState - 1)
+            return static_cast<double>(curState) + 0.5;
+        else if (curState == nextState + 1)
+            return static_cast<double>(curState) - 0.5;
+        return 0.0;
+    }
+}
+
 State* probability::Flow::st = new ThirdS;
 
 probability::Flow::Flow(uint8 flow) : P(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
@@ -144,7 +228,7 @@ double* probability::Flow::Powermatrix(double* const mat, const uint8 power) con
 void probability::Flow::PFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            P[(maxCarsInFlows[flow] + 1) * i + j] = getP(i, j, flow);
+            P[(maxCarsInFlows[flow] + 1) * i + j] = getp(i, j, flow);
         }
     }
 }
@@ -152,7 +236,7 @@ void probability::Flow::PFormation() {
 void probability::Flow::QFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            Q[(maxCarsInFlows[flow] + 1) * i + j] = getQ(i, j, flow);
+            Q[(maxCarsInFlows[flow] + 1) * i + j] = getq(i, j, flow);
         }
     }
 }
@@ -160,7 +244,7 @@ void probability::Flow::QFormation() {
 void probability::Flow::GFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            G[(maxCarsInFlows[flow] + 1) * i + j] = getG(i, j, flow);
+            G[(maxCarsInFlows[flow] + 1) * i + j] = getg(i, j, flow);
         }
     }
 }
@@ -168,21 +252,21 @@ void probability::Flow::GFormation() {
 void probability::Flow::HFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            H[(maxCarsInFlows[flow] + 1) * i + j] = getH(i, j, flow);
+            H[(maxCarsInFlows[flow] + 1) * i + j] = geth(i, j, flow);
         }
     }
 }
 
-void probability::Flow::changeState(mode md) {
+void probability::Flow::changeState(const size_t md) {
     delete st;
     switch (md) {
-    case first:
+    case 0:
         st = new FirstS;
         break;
-    case second:
+    case 1:
         st = new SecondS;
         break;
-    case third:
+    case 2:
         st = new ThirdS;
         break;
     default:
@@ -269,40 +353,143 @@ double probability::Flow::expectedValue(const double* marginalProbabilities) con
     return res;
 }
 
+size_t probability::Flow::getDeltaCount(const size_t number) const {
+    switch (number) {
+    case 0:
+        return Flow::st->getP1();
+    case 1:
+        return Flow::st->getQ1();
+    case 2:
+        return Flow::st->getP2();
+    case 3:
+        return Flow::st->getQ2();
+    default:
+        return -1;
+    }
+}
+
 void probability::Flow::VectorH(double* currentH) const {
+    //printVector(currentH, maxCarsInFlows[0] + 1);
+    //std::cout << std::endl;
     double* tempH = new double[maxCarsInFlows[flow] + 1] {};
     size_t s1 = flow == 0 ? Flow::st->getQ1() + Flow::st->getP2() + Flow::st->getQ2() : Flow::st->getQ2(),
            s2 = flow == 0 ? Flow::st->getP1() : Flow::st->getP2(),
            s3 = flow == 0 ? 0 : Flow::st->getP1() + Flow::st->getQ1();
-    for (size_t i = 0; i < s1; ++i) {
+
+    double* GT = new double[(maxCarsInFlows[0] + 1) * (maxCarsInFlows[0] + 1)];
+    double* HT = new double[(maxCarsInFlows[0] + 1) * (maxCarsInFlows[0] + 1)];
+    double* mult1 = new double[(maxCarsInFlows[0] + 1) * (maxCarsInFlows[0] + 1)]{};
+    double* mult2 = new double[(maxCarsInFlows[0] + 1) * (maxCarsInFlows[0] + 1)]{};
+    for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+        for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+            GT[l * (maxCarsInFlows[flow] + 1) + k] = G[k * (maxCarsInFlows[flow] + 1) + l];
+            HT[l * (maxCarsInFlows[flow] + 1) + k] = H[k * (maxCarsInFlows[flow] + 1) + l];
+        }
+    matrixMultiplication(Q, GT, mult1, maxCarsInFlows[0] + 1);
+    matrixMultiplication(P, HT, mult2, maxCarsInFlows[0] + 1);
+
+    for (int j = 0; j < 4; ++j) {
+        for (size_t i = 0; i < getDeltaCount(3 - j); ++i) {
+            if (j == (5 - (flow + 1) * 2)) {
+                for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+                    double Ph = 0.0;
+                    for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+                        Ph += P[(maxCarsInFlows[flow] + 1) * k + l] * currentH[l];
+                    tempH[k] = mult2[(maxCarsInFlows[flow] + 1) * k + k] + Ph;
+                }
+                for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+                    currentH[l] = tempH[l];
+            } else {
+                for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+                    double Qg = 0.0;
+                    for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+                        Qg += Q[(maxCarsInFlows[flow] + 1) * k + l] * currentH[l];
+                    tempH[k] = mult1[(maxCarsInFlows[flow] + 1) * k + k] + Qg;
+                }
+                for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+                    currentH[l] = tempH[l];
+            }
+            //printVector(currentH, maxCarsInFlows[0] + 1);
+        }
+        //std::cout << "-----------------------------------" << std::endl;
+    }
+
+    /*for (size_t i = 0; i < s1; ++i) {
+        for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+            double Qg = 0.0;
+            for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+                Qg += Q[(maxCarsInFlows[flow] + 1) * k + l] * currentH[l];
+            }
+            tempH[k] = mult1[(maxCarsInFlows[flow] + 1) * k + k] + Qg;
+        }
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            currentH[l] = tempH[l];
+    }
+    for (size_t i = 0; i < s2; ++i) {
+        for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+            double Ph = 0.0;
+            for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+                Ph += P[(maxCarsInFlows[flow] + 1) * k + l] * currentH[l];
+            }
+            tempH[k] = mult2[(maxCarsInFlows[flow] + 1) * k + k] + Ph;
+        }
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            currentH[l] = tempH[l];
+    }
+    for (size_t i = 0; i < s3; ++i) {
+        for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k) {
+            double Qg = 0.0;
+            for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
+                Qg += Q[(maxCarsInFlows[flow] + 1) * k + l] * currentH[l];
+            }
+            tempH[k] = mult1[(maxCarsInFlows[flow] + 1) * k + k] + Qg;
+        }
+        for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
+            currentH[l] = tempH[l];
+    }*/
+
+    //std::cout << std::endl;
+    //printMatrix(GT, maxCarsInFlows[0] + 1);
+    //std::cout << std::endl;
+    //printMatrix(mult1, maxCarsInFlows[0] + 1);
+    delete[] GT;
+    delete[] HT;
+    delete[] mult1;
+    delete[] mult2;
+
+    /*for (size_t i = 0; i < s1; ++i) {
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
             for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k)
-                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * k + l] + currentH[k]);
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
             currentH[l] = tempH[l];
             tempH[l] = 0.0;
         }
+        //printVector(currentH, maxCarsInFlows[0] + 1);
+        //std::cout << std::endl;
     }
     //printVector(currentH, maxCarsInFlows[0] + 1);
     for (size_t i = 0; i < s2; ++i) {
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
             for (size_t k = 0; k <= (maxCarsInFlows[flow]); ++k)
-                tempH[l] += P[(maxCarsInFlows[flow] + 1) * l + k] * (H[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+                tempH[l] += P[(maxCarsInFlows[flow] + 1) * l + k] * (H[(maxCarsInFlows[flow] + 1) * k + l] + currentH[k]);
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
             currentH[l] = tempH[l];
             tempH[l] = 0.0;
         }
+        //printVector(currentH, maxCarsInFlows[0] + 1);
+        //std::cout << std::endl;
     }
     //printVector(currentH, maxCarsInFlows[0] + 1);
     for (size_t i = 0; i < s3; ++i) {
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l)
             for (size_t k = 0; k <= maxCarsInFlows[flow]; ++k)
-                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * l + k] + currentH[k]);
+                tempH[l] += Q[(maxCarsInFlows[flow] + 1) * l + k] * (G[(maxCarsInFlows[flow] + 1) * k + l] + currentH[k]);
         for (size_t l = 0; l <= maxCarsInFlows[flow]; ++l) {
             currentH[l] = tempH[l];
             tempH[l] = 0.0;
         }
-    }
+    }*/
     //printVector(currentH, maxCarsInFlows[0] + 1);
     delete[] tempH;
 }
@@ -349,11 +536,16 @@ void probability::transitionMatrix(const Flow& f1, const Flow& f2, double* res) 
     matrixMultiplication(tmp, Q2.get(), res2, maxCarsInFlows[1] + 1);
     delete[] tmp;
 
+    //std::cout << "p1:" << std::endl;
+    //printMatrix(res1, maxCarsInFlows[0] + 1);
+    //std::cout << "p2:" << std::endl;
+    //printMatrix(res2, maxCarsInFlows[0] + 1);
+
     for (size_t i = 0; i <= maxCarsInFlows[0]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[1]; ++j) {
             for (size_t k = 0; k <= maxCarsInFlows[0]; ++k) {
                 for (size_t g = 0; g <= maxCarsInFlows[1]; ++g) {
-                    res[(i * (maxCarsInFlows[1] + 1) + j) * statesCount + (g * (maxCarsInFlows[0] + 1) + k)] =
+                    res[(i * (maxCarsInFlows[1] + 1) + j) * statesCount + (k * (maxCarsInFlows[0] + 1) + g)] =
                         res1[i * (maxCarsInFlows[0] + 1) + k] * res2[j * (maxCarsInFlows[1] + 1) + g];
                 }
             }
@@ -426,10 +618,11 @@ void probability::WeightDetermination(double* P, const double* Z, double* u) {
 }
 
 bool probability::SolutionImprovement(double** P, double** Z, double* u, uint8* d) {
-    double min = 0.0;
     bool change = false;
+    u[statesCount - 1] = 0;
     for (size_t i = 0; i < statesCount; ++i) {
-        uint8 index = 0;
+        uint8 index = 255;
+        double min = INFINITY;
         for (uint8 k = 0; k < modeCount; ++k) {
             double sum = 0.0;
             for (size_t j = 0; j < statesCount; ++j)
@@ -441,6 +634,7 @@ bool probability::SolutionImprovement(double** P, double** Z, double* u, uint8* 
             }
         }
         if (d[i] != index) {
+            //std::cout << "i - " << i << ", "<< static_cast<int>(d[i]) << " => " << static_cast<int>(index) << std::endl;
             d[i] = index;
             change = true;
         }
@@ -457,6 +651,7 @@ void probability::HowardAlgorithm(uint8* const modes) {
     double** Z   = new double* [modeCount];
 
     for (size_t i = 0; i < modeCount; ++i) {
+        Flow::changeState(i);
         trm[i] = new double[statesCount * statesCount];
         Z[i] = new double[statesCount];
 
@@ -478,9 +673,6 @@ void probability::HowardAlgorithm(uint8* const modes) {
         allFlows[i * 2].VectorH(vectorH11);
         allFlows[i * 2 + 1].VectorH(vectorH12);
         ExpectedValueOfRequestTime(vectorH11, vectorH12, Z[i]);
-
-        delete[] Z[i];
-        delete[] trm[i];
     }
 
     for (size_t i = 0; i < statesCount; ++i) {
@@ -495,16 +687,14 @@ void probability::HowardAlgorithm(uint8* const modes) {
         new(modes + i) uint8(min_index);
     }
 
-    double* u = new double[statesCount];
-
-    double* P = new double[statesCount * statesCount];
+    double* u     = new double[statesCount] {};
     double* P_cur = new double[statesCount * statesCount];
-    double* q = new double[statesCount];
+    double* q     = new double[statesCount];
 
     for (size_t i = 0; i < statesCount; ++i) {
-        q = Z[modes[i]];
+        q[i] = Z[modes[i]][i];
         for (size_t j = 0; j < statesCount; ++j)
-            P[i * statesCount + j] = P_cur[i * statesCount + j] = trm[modes[i]][i * statesCount + j];
+            P_cur[j * statesCount + i] = trm[modes[i]][i * statesCount + j];
     }
 
     // create handle
@@ -523,12 +713,21 @@ void probability::HowardAlgorithm(uint8* const modes) {
     assert(cudaSuccess == cudaStat3);
     assert(cudaSuccess == cudaStat4);
 
-    uint8* d = new uint8[statesCount];
     bool iter = true;
+    size_t iter_count = 0;
     do {
         WeightDetermination(P_cur, q, u);
-        iter = SolutionImprovement(trm, Z, u, d);
+        std::cout << std::endl;
+        printVector(u, statesCount);
+        iter = SolutionImprovement(trm, Z, u, modes);
+        for (size_t i = 0; i < statesCount; ++i) {
+            q[i] = Z[modes[i]][i];
+            for (size_t j = 0; j < statesCount; ++j)
+                P_cur[j * statesCount + i] = trm[modes[i]][i * statesCount + j];
+        }
+        ++iter_count;
     } while (iter);
+    std::cout << "Iteration count: " << iter_count << std::endl;
 
     if (d_A) cudaFree(d_A);
     if (d_tau) cudaFree(d_tau);
@@ -539,10 +738,14 @@ void probability::HowardAlgorithm(uint8* const modes) {
     if (cusolverH) cusolverDnDestroy(cusolverH);
     cudaDeviceReset();
 
-    delete[] d;
-    delete[] P;
+    for (size_t i = 0; i < modeCount; ++i) {
+        delete[] Z[i];
+        delete[] trm[i];
+    }
+
     delete[] P_cur;
     delete[] u;
+    delete[] q;
     delete[] Z;
     delete[] trm;
 
@@ -580,65 +783,29 @@ State::State(const uint8 _p1, const uint8 _q1, const uint8 _p2, const uint8 _q2)
 
 State::~State() {}
 
-FirstS::FirstS() : State(3, 1, 2, 1) {}
+FirstS::FirstS() : State(6, 4, 10, 4) {}
 
-SecondS::SecondS() : State(2, 1, 3, 1) {}
+SecondS::SecondS() : State(10, 4, 6, 4) {}
 
-ThirdS::ThirdS() : State(2, 1, 2, 1) {}
+ThirdS::ThirdS() : State(8, 4, 8, 4) {}
 
-void LinearSolver(const double* Acopy, const double* b, double* x) {
-    /*int bufferSize = 0;
-    int* info = nullptr;
-    double* buffer = nullptr;
-    double* A = nullptr;
-    int* ipiv = nullptr; // pivoting sequence
-    int h_info = 0;
-    double time_solve;
-    cusolverStatus_t status;
-    cudaError_t error;
-
-    status = cusolverDnDgetrf_bufferSize(handler, n, n, const_cast<double*>(A), n, &bufferSize);
-
-    error = cudaMalloc(&info, sizeof(int));
-    error = cudaMalloc(&buffer, sizeof(double) * bufferSize);
-    error = cudaMalloc(&A, sizeof(double) * n * n);
-    error = cudaMalloc(&ipiv, sizeof(int) * n);
-
-    error = cudaMemcpy(A, Acopy, sizeof(double) * n * n, cudaMemcpyDeviceToDevice);
-    error = cudaMemset(info, 0, sizeof(int));
-
-    status = cusolverDnDgetrf(handler, n, n, A, n, buffer, ipiv, info);
-    error = cudaMemcpy(&h_info, info, sizeof(int), cudaMemcpyDeviceToHost);
-    if (0 != h_info) {
-        fprintf(stderr, "Error: LU factorization failed\n");
-        printf("INFO_VALUE = %d\n", h_info);
-    }
-
-    error = cudaMemcpy(x, b, sizeof(double) * n, cudaMemcpyDeviceToDevice);
-    status = cusolverDnDgetrs(handler, CUBLAS_OP_N, n, 1, A, n, ipiv, x, n, info);
-    cudaDeviceSynchronize();
-
-    if (info) cudaFree(info);
-    if (buffer) cudaFree(buffer);
-    if (A) cudaFree(A);
-    if (ipiv) cudaFree(ipiv);*/
-
-    cudaStat1 = cudaMemcpy(d_A, Acopy, sizeof(double) * statesCount * statesCount, cudaMemcpyHostToDevice);
-    cudaStat2 = cudaMemcpy(d_B, b, sizeof(double) * statesCount, cudaMemcpyHostToDevice);
+void LinearSolver(const double* Acopy, const double* b, double* x, const size_t size) {
+    cudaStat1 = cudaMemcpy(d_A, Acopy, sizeof(double) * size * size, cudaMemcpyHostToDevice);
+    cudaStat2 = cudaMemcpy(d_B, b, sizeof(double) * size, cudaMemcpyHostToDevice);
     assert(cudaSuccess == cudaStat1);
     assert(cudaSuccess == cudaStat2);
 
-    cusolver_status = cusolverDnDgeqrf_bufferSize(cusolverH, statesCount, statesCount, d_A, statesCount, &lwork_geqrf);
+    cusolver_status = cusolverDnDgeqrf_bufferSize(cusolverH, size, size, d_A, size, &lwork_geqrf);
     assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
-    cusolver_status = cusolverDnDormqr_bufferSize(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, statesCount, 1,
-                                                  statesCount, d_A, statesCount, d_tau, d_B, statesCount, &lwork_ormqr);
+    cusolver_status = cusolverDnDormqr_bufferSize(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, size, 1,
+                                                  size, d_A, size, d_tau, d_B, size, &lwork_ormqr);
     assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
     lwork = (lwork_geqrf > lwork_ormqr) ? lwork_geqrf : lwork_ormqr;
 
     cudaStat1 = cudaMalloc((void**)&d_work, sizeof(double) * lwork);
     assert(cudaSuccess == cudaStat1);
 
-    cusolver_status = cusolverDnDgeqrf(cusolverH, statesCount, statesCount, d_A, statesCount, d_tau, d_work, lwork, devInfo);
+    cusolver_status = cusolverDnDgeqrf(cusolverH, size, size, d_A, size, d_tau, d_work, lwork, devInfo);
     cudaStat1 = cudaDeviceSynchronize();
     assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
     assert(cudaSuccess == cudaStat1);
@@ -647,11 +814,11 @@ void LinearSolver(const double* Acopy, const double* b, double* x) {
     cudaStat1 = cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost);
     assert(cudaSuccess == cudaStat1);
 
-    printf("after geqrf: info_gpu = %d\n", info_gpu);
+    //printf("after geqrf: info_gpu = %d\n", info_gpu);
     assert(0 == info_gpu);
 
-    cusolver_status = cusolverDnDormqr(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, statesCount, 1, statesCount,
-                                       d_A, statesCount, d_tau, d_B, statesCount, d_work, lwork, devInfo);
+    cusolver_status = cusolverDnDormqr(cusolverH, CUBLAS_SIDE_LEFT, CUBLAS_OP_T, size, 1, size,
+                                       d_A, size, d_tau, d_B, size, d_work, lwork, devInfo);
     cudaStat1 = cudaDeviceSynchronize();
     assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
     assert(cudaSuccess == cudaStat1);
@@ -659,17 +826,17 @@ void LinearSolver(const double* Acopy, const double* b, double* x) {
     cudaStat1 = cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost);
     assert(cudaSuccess == cudaStat1);
 
-    printf("after ormqr: info_gpu = %d\n", info_gpu);
+    //printf("after ormqr: info_gpu = %d\n", info_gpu);
     assert(0 == info_gpu);
 
     const double one = 1.0;
     cublas_status = cublasDtrsm(cublasH, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,
-                                statesCount, 1, &one, d_A, statesCount, d_B, statesCount);
+                                size, 1, &one, d_A, size, d_B, size);
     cudaStat1 = cudaDeviceSynchronize();
     assert(CUBLAS_STATUS_SUCCESS == cublas_status);
     assert(cudaSuccess == cudaStat1);
 
-    cudaStat1 = cudaMemcpy(x, d_B, sizeof(double) * statesCount, cudaMemcpyDeviceToHost);
+    cudaStat1 = cudaMemcpy(x, d_B, sizeof(double) * size, cudaMemcpyDeviceToHost);
     assert(cudaSuccess == cudaStat1);
 }
 
@@ -678,20 +845,6 @@ void matrixMultiplication(const double* mat1, const double* mat2, double* const 
         for (size_t j = 0; j < size; ++j)
             for (size_t k = 0; k < size; ++k)
                 res[i * size + j] += mat1[i * size + k] * mat2[k * size + j];
-}
-
-void printMatrix(const double* mat, const size_t size) {
-    std::cout << "\t";
-    for (size_t i = 0; i < size; ++i)
-        std::cout << i << "\t";
-    std::cout << std::endl;
-    for (size_t i = 0; i < size; ++i) {
-        std::cout << i << "\t";
-        for (size_t j = 0; j < size; ++j)
-            std::cout << mat[i * size + j] << "\t";
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
 }
 
 void printVector(const double* vec, const size_t size) {

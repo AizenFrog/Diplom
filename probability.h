@@ -5,10 +5,12 @@
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 
+#include <iostream>
+
 typedef unsigned char uint8;
 
 constexpr uint8 numberOfFlows = 2;
-constexpr size_t maxCarsInFlows[numberOfFlows] = { 30, 30 }; // емкость очередей
+constexpr size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // емкость очередей
 constexpr uint8 nomberOfStates = 2 * numberOfFlows; // количество состояний обслуживающего устройства
 constexpr size_t statesCount = (static_cast<size_t>(maxCarsInFlows[0]) + 1) * (maxCarsInFlows[1] + 1);
 constexpr uint8 modeCount = 3;
@@ -48,18 +50,19 @@ public:
     ThirdS();
 };
 
-void LinearSolver(const double* Acopy, const double* b, double* x);
+void LinearSolver(const double* Acopy, const double* b, double* x, const size_t size = statesCount);
 
 void matrixMultiplication(const double* mat1, const double* mat2, double* const res, const size_t size);
 
-void printMatrix(const double* mat, const size_t size);
+template <class T>
+static void printMatrix(const T* mat, const size_t size);
 
 void printVector(const double* vec, const size_t size);
 
 namespace probability {
-    const double alpha[numberOfFlows] = { 0.15, 0.2 }; // вероятность прибытия клиента в поток i
-    const double c[numberOfFlows] = { 0.6, 0.55 }; // вероятность, что в поток прибудет 1 клиент
-    const double beta[numberOfFlows] = { 0.8, 0.7 }; // вероятность завершения услуги клиента
+    const double alpha[numberOfFlows] = { 0.1, 0.05 }; // вероятность прибытия клиента в поток i
+    const double c[numberOfFlows] = { 1.0, 1.0 }; // вероятность, что в поток прибудет 1 клиент
+    const double beta[numberOfFlows] = { 0.6, 0.65 }; // вероятность завершения услуги клиента
 
     double getP(const size_t curState, const size_t nextState, const uint8 flow);
 
@@ -78,13 +81,14 @@ namespace probability {
         void QFormation();
         void GFormation();
         void HFormation();
-        static void changeState(mode md);
+        static void changeState(const size_t md);
         void printP();
         void printQ();
         void printG();
         void printH();
         void getMarginalProbability(const double* marginalVector, double* const res) const;
         double expectedValue(const double* marginalProbabilities) const;
+        size_t getDeltaCount(const size_t number) const;
         void VectorH(double* currentH) const;
         double variance(const double* marginalProbabilities) const;
         friend double covariance(const Flow& f1, const Flow& f2, const double* marginalVector);
@@ -111,6 +115,36 @@ namespace probability {
     bool SolutionImprovement(double** P, double** Z, double* u, uint8* d);
 
     void HowardAlgorithm(uint8* const modes);
+}
+
+template <class T>
+void printMatrix(const T* mat, const size_t size) {
+    std::cout << "\t";
+    for (size_t i = 0; i < size; ++i)
+        std::cout << i << "\t";
+    std::cout << std::endl;
+    for (size_t i = 0; i < size; ++i) {
+        std::cout << i << "\t";
+        for (size_t j = 0; j < size; ++j)
+            std::cout << mat[i * size + j] << "\t";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+template <>
+void printMatrix<uint8>(const uint8* mat, const size_t size) {
+    //std::cout << "  ";
+    //for (size_t i = 0; i < size; ++i)
+    //    std::cout << i << "  ";
+    std::cout << std::endl;
+    for (size_t i = 0; i < size; ++i) {
+        //std::cout << i << "  ";
+        for (size_t j = 0; j < size; ++j)
+            std::cout << static_cast<int>(mat[i * size + j]) << "  ";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
 }
 
 #endif // !PROBABILITY

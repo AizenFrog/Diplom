@@ -21,4 +21,5 @@ include_directories(#${BLAS_INCLUDE_DIRS}
 
 add_executable(${PROJECT_NAME} ${headers} ${sources})
 
-target_link_libraries(${PROJECT_NAME} PUBLIC ${CUDA_LIBRARIES} cublas cusolver) #${BLAS_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_cusolver_LIBRARY}) #${BLAS_LIBRARIES})
+#cuda_add_cublas_to_target(${PROJECT_NAME})
