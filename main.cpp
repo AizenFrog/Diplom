@@ -3,16 +3,28 @@
 #include <fstream>
 
 bool outputInFile(const uint8* modes, const size_t iterationCount, const size_t numberOfExperiment,
-                  const int pamam, const double paramValue) {
+                  const int param, const double paramValue) {
     std::ofstream file("programm_output.txt", std::ios_base::app);
     if (file.is_open() == false) {
         return false;
     }
     file << "Number of experiment: " << numberOfExperiment << std::endl;
-    file << "Number of iterations: " << iterationCount << std::endl << std::endl;
-    for (size_t i = 0; i < maxCarsInFlows[0]; ++i) {
-        for (size_t j = 0; j < maxCarsInFlows[1]; ++j)
-            file << static_cast<int>(modes[i * maxCarsInFlows[0] + j]) << "  ";
+    file << "Number of iterations: " << iterationCount << std::endl;
+    switch (param) {
+    case 0:
+        file << "alpha: " << paramValue << std::endl;
+        break;
+    case 1:
+        file << "beta: " << paramValue << std::endl;
+        break;
+    case 2:
+        file << "c: " << paramValue << std::endl;
+        break;
+    }
+    file << std::endl;
+    for (size_t i = 0; i < maxCarsInFlows[0] + 1; ++i) {
+        for (size_t j = 0; j < maxCarsInFlows[1] + 1; ++j)
+            file << static_cast<int>(modes[i * (maxCarsInFlows[0] + 1) + j]) << "  ";
         file << std::endl;
     }
     file << "--------------------------------------------" << std::endl;
@@ -226,15 +238,24 @@ int main(int argc, char** argv) {
         return -1;
     }
     size_t iter = 0;
+    size_t max_iter_count = (1.0 - start_alpha) / step_alpha;
     uint8* previousModes = new uint8[statesCount];
     double a[2]{ 0.05, 0.05 };
     for (; start_alpha < 1.0; start_alpha += step_alpha) {
+        a[0] = start_alpha;
         probability::setSystemConstants(2, maxCars, a, probability::beta, probability::c);
         uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
         size_t iter_count = probability::HowardAlgorithm(modes);
         printMatrix(modes, maxCarsInFlows[0] + 1);
-        // std::cout << "Results saves:" << outputInFile(modes, iter_count, iter) << std::endl;
-        std::memcpy(previousModes, modes, statesCount);
+        for (size_t i = 0; i < statesCount; ++i) {
+            if (previousModes[i] != modes[i])
+                std::cout << "i - " << i << ", prev - "
+                          << static_cast<int>(previousModes[i]) << ", curret - "
+                          << static_cast<int>(modes[i]) << std::endl;
+        }
+        if (iter < max_iter_count - 1)
+            std::memcpy(previousModes, modes, statesCount);
+        outputInFile(modes, iter_count, iter, 0, start_alpha);
         for (size_t i = 0; i < statesCount; ++i)
             (modes + i)->~uint8();
         operator delete(modes);
