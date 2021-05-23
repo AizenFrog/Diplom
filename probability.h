@@ -10,16 +10,10 @@
 typedef unsigned char uint8;
 
 constexpr uint8 numberOfFlows = 2;
-constexpr size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // ������� ��������
+inline size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // ������� ��������
 constexpr uint8 nomberOfStates = 2 * numberOfFlows; // ���������� ��������� �������������� ����������
-constexpr size_t statesCount = (static_cast<size_t>(maxCarsInFlows[0]) + 1) * (maxCarsInFlows[1] + 1);
+inline size_t statesCount = (maxCarsInFlows[0] + 1) * (maxCarsInFlows[1] + 1);
 constexpr uint8 modeCount = 3;
-
-enum mode { // ������ ������ �������������� ����������
-    first,
-    second,
-    third
-};
 
 class State {
 public:
@@ -60,9 +54,9 @@ static void printMatrix(const T* mat, const size_t size);
 void printVector(const double* vec, const size_t size);
 
 namespace probability {
-    const double alpha[numberOfFlows] = { 0.1, 0.05 }; // ����������� �������� ������� � ����� i
-    const double c[numberOfFlows] = { 1.0, 1.0 }; // �����������, ��� � ����� �������� 1 ������
-    const double beta[numberOfFlows] = { 0.6, 0.65 }; // ����������� ���������� ������ �������
+    inline double alpha[numberOfFlows] = { 0.1, 0.05 }; // ����������� �������� ������� � ����� i
+    inline double c[numberOfFlows] = { 1.0, 1.0 }; // �����������, ��� � ����� �������� 1 ������
+    inline double beta[numberOfFlows] = { 0.6, 0.65 }; // ����������� ���������� ������ �������
 
     double getP(const size_t curState, const size_t nextState, const uint8 flow);
 
@@ -102,6 +96,9 @@ namespace probability {
         static State* st;
     };
 
+    void setSystemConstants(const int flowCount, const size_t* carCount, 
+                            const double* a, const double* b, const double* c);
+
     double covariance(const Flow& f1, const Flow& f2, const double* marginalVector);
 
     void transitionMatrix(const Flow& f1, const Flow& f2, double* const res);
@@ -114,7 +111,7 @@ namespace probability {
 
     bool SolutionImprovement(double** P, double** Z, double* u, uint8* d);
 
-    void HowardAlgorithm(uint8* const modes);
+    size_t HowardAlgorithm(uint8* const modes);
 }
 
 template <class T>

@@ -1,5 +1,24 @@
 #include "probability.h"
 #include <iostream>
+#include <fstream>
+
+bool outputInFile(const uint8* modes, const size_t iterationCount, const size_t numberOfExperiment,
+                  const int pamam, const double paramValue) {
+    std::ofstream file("programm_output.txt", std::ios_base::app);
+    if (file.is_open() == false) {
+        return false;
+    }
+    file << "Number of experiment: " << numberOfExperiment << std::endl;
+    file << "Number of iterations: " << iterationCount << std::endl << std::endl;
+    for (size_t i = 0; i < maxCarsInFlows[0]; ++i) {
+        for (size_t j = 0; j < maxCarsInFlows[1]; ++j)
+            file << static_cast<int>(modes[i * maxCarsInFlows[0] + j]) << "  ";
+        file << std::endl;
+    }
+    file << "--------------------------------------------" << std::endl;
+    file.close();
+    return true;
+}
 
 int main(int argc, char** argv) {
     /*std::cout << "----------------First mode--------------" << std::endl;
@@ -193,11 +212,53 @@ int main(int argc, char** argv) {
     delete[] Z3;
 
     return 0;*/
+
+    size_t maxCars[2]{};
+    double start_alpha;
+    double step_alpha;
+    std::cout << "Write system parameters:" << std::endl
+              << "Max car in flow 1: "; std::cin >> maxCars[0];
+    std::cout << "Max car in flow 2: "; std::cin >> maxCars[1];
+    std::cout << "Write start alpha probability: "; std::cin >> start_alpha;
+    std::cout << "Write alpha probability step: "; std::cin >> step_alpha;
+    if (start_alpha > 1.0) {
+        std::cerr << "alpha > 1" << std::endl;
+        return -1;
+    }
+    size_t iter = 0;
+    uint8* previousModes = new uint8[statesCount];
+    double a[2]{ 0.05, 0.05 };
+    for (; start_alpha < 1.0; start_alpha += step_alpha) {
+        probability::setSystemConstants(2, maxCars, a, probability::beta, probability::c);
+        uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
+        size_t iter_count = probability::HowardAlgorithm(modes);
+        printMatrix(modes, maxCarsInFlows[0] + 1);
+        // std::cout << "Results saves:" << outputInFile(modes, iter_count, iter) << std::endl;
+        std::memcpy(previousModes, modes, statesCount);
+        for (size_t i = 0; i < statesCount; ++i)
+            (modes + i)->~uint8();
+        operator delete(modes);
+        ++iter;
+    }
+    delete[] previousModes;
+    
+    /*double a[2]{}, b[2]{}, cc[2]{};
+    std::cout << "Write system parameters:" << std::endl
+              << "Max car in flow 1: "; std::cin >> maxCars[0];
+    std::cout << "Max car in flow 2: "; std::cin >> maxCars[1];
+    std::cout << "alpha in flow 1: "; std::cin >> a[0];
+    std::cout << "alpha in flow 2: "; std::cin >> a[1];
+    std::cout << "beta in flow 1: "; std::cin >> b[0];
+    std::cout << "beta in flow 2: "; std::cin >> b[1];
+    std::cout << "c in flow 0: "; std::cin >> cc[0];
+    std::cout << "c in flow 1: "; std::cin >> cc[1];
+    probability::setSystemConstants(2, maxCars, a, b, cc);
+
     uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
     probability::HowardAlgorithm(modes);
     printMatrix(modes, maxCarsInFlows[0] + 1);
     for (size_t i = 0; i < statesCount; ++i)
         (modes + i)->~uint8();
-    operator delete(modes);
+    operator delete(modes);*/
     return 0;
 }

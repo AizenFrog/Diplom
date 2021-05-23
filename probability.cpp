@@ -228,7 +228,7 @@ double* probability::Flow::Powermatrix(double* const mat, const uint8 power) con
 void probability::Flow::PFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            P[(maxCarsInFlows[flow] + 1) * i + j] = getp(i, j, flow);
+            P[(maxCarsInFlows[flow] + 1) * i + j] = getP(i, j, flow);
         }
     }
 }
@@ -236,7 +236,7 @@ void probability::Flow::PFormation() {
 void probability::Flow::QFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            Q[(maxCarsInFlows[flow] + 1) * i + j] = getq(i, j, flow);
+            Q[(maxCarsInFlows[flow] + 1) * i + j] = getQ(i, j, flow);
         }
     }
 }
@@ -244,7 +244,7 @@ void probability::Flow::QFormation() {
 void probability::Flow::GFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            G[(maxCarsInFlows[flow] + 1) * i + j] = getg(i, j, flow);
+            G[(maxCarsInFlows[flow] + 1) * i + j] = getG(i, j, flow);
         }
     }
 }
@@ -252,7 +252,7 @@ void probability::Flow::GFormation() {
 void probability::Flow::HFormation() {
     for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
         for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            H[(maxCarsInFlows[flow] + 1) * i + j] = geth(i, j, flow);
+            H[(maxCarsInFlows[flow] + 1) * i + j] = getH(i, j, flow);
         }
     }
 }
@@ -502,6 +502,17 @@ double probability::Flow::variance(const double* marginalProbabilities) const {
     return res;
 }
 
+void probability::setSystemConstants(const int flowCount, const size_t* carCount,
+                                     const double* a, const double* b, const double* cc) {
+    for (int i = 0; i < flowCount; ++i) {
+        maxCarsInFlows[i] = carCount[i];
+        alpha[i] = a[i];
+        beta[i] = b[i];
+        c[i] = cc[i];
+    }
+    statesCount = (maxCarsInFlows[0] + 1) * (maxCarsInFlows[1] + 1);
+}
+
 double probability::covariance(const Flow& f1, const Flow& f2, const double* marginalVector) {
     double res = 0.0;
     double* mp1 = new double[maxCarsInFlows[f1.flow] + 1];
@@ -653,7 +664,7 @@ bool probability::SolutionImprovement(double** P, double** Z, double* u, uint8* 
     return change;
 }
 
-void probability::HowardAlgorithm(uint8* const modes) {
+size_t probability::HowardAlgorithm(uint8* const modes) {
     Flow* allFlows = static_cast<Flow*>(operator new(sizeof(Flow) * (uint32_t)numberOfFlows * modeCount));
     for (size_t i = 0; i < (uint32_t)numberOfFlows * modeCount; ++i)
         new(allFlows + i) Flow(i % 2);
@@ -729,7 +740,7 @@ void probability::HowardAlgorithm(uint8* const modes) {
     do {
         WeightDetermination(P_cur, q, u);
         std::cout << std::endl;
-        printVector(u, statesCount);
+        // printVector(u, statesCount);
         iter = SolutionImprovement(trm, Z, u, modes);
         for (size_t i = 0; i < statesCount; ++i) {
             q[i] = Z[modes[i]][i];
@@ -763,6 +774,7 @@ void probability::HowardAlgorithm(uint8* const modes) {
     for (size_t i = 0; i < (uint32_t)numberOfFlows * modeCount; ++i)
         (allFlows + i)->~Flow();
     operator delete(allFlows);
+    return iter_count;
 }
 
 void probability::ExpectedValueOfRequestTime(const double* vectorH1, const double* vectorH2, double* Z) {

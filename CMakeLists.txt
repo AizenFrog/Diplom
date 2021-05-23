@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.19.0)
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}-std=c++1y")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}-std=c++17")
+set (CMAKE_CXX_STANDARD 17)
 project(DiplomProject)
 
 #find_package(BLAS REQUIRED)
