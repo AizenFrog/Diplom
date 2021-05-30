@@ -32,6 +32,47 @@ bool outputInFile(const uint8* modes, const size_t iterationCount, const size_t 
     return true;
 }
 
+std::pair<double, double> computeProbabilitys(const double alpha, const double c) {
+    double expectedValue = alpha * c * 1.0 + alpha * (1.0 - c) * 2.0;
+    double resAlpha = -1.0, resC = -1.0;
+    if (c >= 0.5) {
+        double newAlpha = alpha - 0.01;
+        int iterCount = 1;
+        for (; newAlpha > 0.0; newAlpha -= 0.01) {
+            double newC = c - 0.01;
+            for (; newC > 0.0; newC -= 0.01) {
+                double newExpectedValue = newAlpha * newC * 1.0 + newAlpha * (1.0 - newC) * 2.0;
+                if (std::abs(newExpectedValue - expectedValue) <= 0.0001) {
+                    resAlpha = newAlpha;
+                    resC = newC;
+                    //break;
+                }
+            }
+            if (std::abs(resAlpha - resC) > 0.0000001)
+                break;
+            ++iterCount;
+        }
+    } else {
+        double newAlpha = alpha + 0.01;
+        int iterCount = 1;
+        for (; newAlpha < 1.0; newAlpha += 0.01) {
+            double newC = c + 0.01;
+            for (; newC > 1.0; newC += 0.01) {
+                double newExpectedValue = newAlpha * newC * 1.0 + newAlpha * (1.0 - newC) * 2.0;
+                if (std::abs(newExpectedValue - expectedValue) <= 0.0001) {
+                    resAlpha = newAlpha;
+                    resC = newC;
+                    //break;
+                }
+            }
+            if (std::abs(resAlpha - resC) > 0.0000001)
+                break;
+            ++iterCount;
+        }
+    }
+    return std::pair<double, double>(resAlpha, resC);
+}
+
 int main(int argc, char** argv) {
     /*std::cout << "----------------First mode--------------" << std::endl;
     // первый режим обслуживания
@@ -225,83 +266,144 @@ int main(int argc, char** argv) {
 
     return 0;*/
 
-    std::string leadingParam;
     int flowNumber;
     size_t maxCars[2]{};
-    double start_alpha;
-    double step_alpha;
+    std::string experimentType;
     std::cout << "Write system parameters:" << std::endl
-              << "Name of the parameter: "; std::cin >> leadingParam;
+              << "Different sizes of the input bundle [y/n/custom]: "; std::cin >> experimentType;
     std::cout << "Number of flow: "; std::cin >> flowNumber;
     std::cout << "Max car in flow 1: "; std::cin >> maxCars[0];
     std::cout << "Max car in flow 2: "; std::cin >> maxCars[1];
-    std::cout << "Write start param probability: "; std::cin >> start_alpha;
-    std::cout << "Write param probability step: "; std::cin >> step_alpha;
-    if (start_alpha > 1.0) {
-        std::cerr << "alpha > 1" << std::endl;
-        return -1;
-    }
-    size_t iter = 0;
-    size_t max_iter_count = (1.0 - start_alpha) / step_alpha;
-    uint8* previousModes = new uint8[statesCount];
-    double a[2]{};
-    if (leadingParam == "alpha")
-        a[1 - flowNumber] = probability::alpha[1 - flowNumber];
-    else if (leadingParam == "beta")
-        a[1 - flowNumber] = probability::beta[1 - flowNumber];
-    else if (leadingParam == "c")
-        a[1 - flowNumber] = probability::c[1 - flowNumber];
-    for (; start_alpha < 1.0; start_alpha += step_alpha) {
-        a[flowNumber] = start_alpha;
+    if (experimentType == "n") {
+        std::string leadingParam;
+        double start_alpha;
+        double step_alpha;
+        std::string is_new_politics;
+        std::cout << "Name of the parameter: "; std::cin >> leadingParam;
+        std::cout << "Write start param probability: "; std::cin >> start_alpha;
+        std::cout << "Write param probability step: "; std::cin >> step_alpha;
+        std::cout << "Do you want to change politics [y/n]: "; std::cin >> is_new_politics;
+        if (is_new_politics == "y") {
+            std::cout << "First policy: ";  std::cin >> probability::modesValue[0][0],
+                std::cin >> probability::modesValue[0][1],
+                std::cin >> probability::modesValue[0][2],
+                std::cin >> probability::modesValue[0][3];
+            std::cout << "Second policy: "; std::cin >> probability::modesValue[1][0],
+                std::cin >> probability::modesValue[1][1],
+                std::cin >> probability::modesValue[1][2],
+                std::cin >> probability::modesValue[1][3];
+            std::cout << "Third policy: ";  std::cin >> probability::modesValue[2][0],
+                std::cin >> probability::modesValue[2][1],
+                std::cin >> probability::modesValue[2][2],
+                std::cin >> probability::modesValue[2][3];
+        }
+        if (start_alpha > 1.0) {
+            std::cerr << "alpha > 1" << std::endl;
+            return -1;
+        }
+        size_t iter = 0;
+        size_t max_iter_count = (1.0 - start_alpha) / step_alpha;
+        uint8* previousModes = new uint8[statesCount];
+        double a[2]{};
         if (leadingParam == "alpha")
-            probability::setSystemConstants(2, maxCars, a, probability::beta, probability::c);
+            a[1 - flowNumber] = probability::alpha[1 - flowNumber];
         else if (leadingParam == "beta")
-            probability::setSystemConstants(2, maxCars, probability::alpha, a, probability::c);
+            a[1 - flowNumber] = probability::beta[1 - flowNumber];
         else if (leadingParam == "c")
-            probability::setSystemConstants(2, maxCars, probability::alpha, probability::beta, a);
-        
+            a[1 - flowNumber] = probability::c[1 - flowNumber];
+        for (; start_alpha < 1.0; start_alpha += step_alpha) {
+            a[flowNumber] = start_alpha;
+            if (leadingParam == "alpha")
+                probability::setSystemConstants(2, maxCars, a, probability::beta, probability::c);
+            else if (leadingParam == "beta")
+                probability::setSystemConstants(2, maxCars, probability::alpha, a, probability::c);
+            else if (leadingParam == "c")
+                probability::setSystemConstants(2, maxCars, probability::alpha, probability::beta, a);
+
+            uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
+            size_t iter_count = probability::HowardAlgorithm(modes);
+            printMatrix(modes, maxCarsInFlows[0] + 1);
+            for (size_t i = 0; i < statesCount; ++i) {
+                if (previousModes[i] != modes[i])
+                    std::cout << "i - " << i << ", prev - "
+                    << static_cast<int>(previousModes[i]) << ", curret - "
+                    << static_cast<int>(modes[i]) << std::endl;
+            }
+            if (iter < max_iter_count - 1)
+                std::memcpy(previousModes, modes, statesCount);
+            if (leadingParam == "alpha")
+                outputInFile(modes, iter_count, iter, 0, start_alpha);
+            else if (leadingParam == "beta")
+                outputInFile(modes, iter_count, iter, 1, start_alpha);
+            else if (leadingParam == "c")
+                outputInFile(modes, iter_count, iter, 2, start_alpha);
+
+            for (size_t i = 0; i < statesCount; ++i)
+                (modes + i)->~uint8();
+            operator delete(modes);
+            ++iter;
+        }
+        delete[] previousModes;
+    } else if (experimentType == "y") {
+        double alpha[4];
+        double c[4];
+        std::cout << "Write probability of client arrival: "; std::cin >> alpha[0], std::cin >> alpha[1];
+        std::cout << "Write probability that client comes alone: "; std::cin >> c[0], std::cin >> c[1];
+        auto params1 = computeProbabilitys(alpha[0], c[0]);
+        auto params2 = computeProbabilitys(alpha[1], c[1]);
+        alpha[2] = params1.first;
+        alpha[3] = params2.first;
+        c[2] = params1.second;
+        c[3] = params2.second;
+        probability::setSystemConstants(flowNumber, maxCars, alpha, probability::beta, c);
+
         uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
         size_t iter_count = probability::HowardAlgorithm(modes);
         printMatrix(modes, maxCarsInFlows[0] + 1);
-        for (size_t i = 0; i < statesCount; ++i) {
-            if (previousModes[i] != modes[i])
-                std::cout << "i - " << i << ", prev - "
-                          << static_cast<int>(previousModes[i]) << ", curret - "
-                          << static_cast<int>(modes[i]) << std::endl;
-        }
-        if (iter < max_iter_count - 1)
-            std::memcpy(previousModes, modes, statesCount);
-        if (leadingParam == "alpha")
-            outputInFile(modes, iter_count, iter, 0, start_alpha);
-        else if (leadingParam == "beta")
-            outputInFile(modes, iter_count, iter, 1, start_alpha);
-        else if (leadingParam == "c")
-            outputInFile(modes, iter_count, iter, 2, start_alpha);
-
         for (size_t i = 0; i < statesCount; ++i)
             (modes + i)->~uint8();
         operator delete(modes);
-        ++iter;
-    }
-    delete[] previousModes;
-    
-    /*double a[2]{}, b[2]{}, cc[2]{};
-    std::cout << "Write system parameters:" << std::endl
-              << "Max car in flow 1: "; std::cin >> maxCars[0];
-    std::cout << "Max car in flow 2: "; std::cin >> maxCars[1];
-    std::cout << "alpha in flow 1: "; std::cin >> a[0];
-    std::cout << "alpha in flow 2: "; std::cin >> a[1];
-    std::cout << "beta in flow 1: "; std::cin >> b[0];
-    std::cout << "beta in flow 2: "; std::cin >> b[1];
-    std::cout << "c in flow 0: "; std::cin >> cc[0];
-    std::cout << "c in flow 1: "; std::cin >> cc[1];
-    probability::setSystemConstants(2, maxCars, a, b, cc);
 
-    uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
-    probability::HowardAlgorithm(modes);
-    printMatrix(modes, maxCarsInFlows[0] + 1);
-    for (size_t i = 0; i < statesCount; ++i)
-        (modes + i)->~uint8();
-    operator delete(modes);*/
+        probability::setSystemConstants(flowNumber, maxCars, alpha + 2, probability::beta, c + 2);
+        modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
+        iter_count = probability::HowardAlgorithm(modes);
+        printMatrix(modes, maxCarsInFlows[0] + 1);
+        for (size_t i = 0; i < statesCount; ++i)
+            (modes + i)->~uint8();
+        operator delete(modes);
+    } else if (experimentType == "custom") {
+        double a[2]{}, b[2]{}, cc[2]{};
+        std::string is_new_politics;
+        std::cout << "alpha in flow 1: "; std::cin >> a[0];
+        std::cout << "alpha in flow 2: "; std::cin >> a[1];
+        std::cout << "beta in flow 1: "; std::cin >> b[0];
+        std::cout << "beta in flow 2: "; std::cin >> b[1];
+        std::cout << "c in flow 0: "; std::cin >> cc[0];
+        std::cout << "c in flow 1: "; std::cin >> cc[1];
+        std::cout << "Do you want to change politics [y/n]: "; std::cin >> is_new_politics;
+        if (is_new_politics == "y") {
+            std::cout << "First policy: ";  std::cin >> probability::modesValue[0][0],
+                std::cin >> probability::modesValue[0][1],
+                std::cin >> probability::modesValue[0][2],
+                std::cin >> probability::modesValue[0][3];
+            std::cout << "Second policy: "; std::cin >> probability::modesValue[1][0],
+                std::cin >> probability::modesValue[1][1],
+                std::cin >> probability::modesValue[1][2],
+                std::cin >> probability::modesValue[1][3];
+            std::cout << "Third policy: ";  std::cin >> probability::modesValue[2][0],
+                std::cin >> probability::modesValue[2][1],
+                std::cin >> probability::modesValue[2][2],
+                std::cin >> probability::modesValue[2][3];
+        }
+        probability::setSystemConstants(2, maxCars, a, b, cc);
+
+        uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
+        probability::HowardAlgorithm(modes);
+        printMatrix(modes, maxCarsInFlows[0] + 1);
+        for (size_t i = 0; i < statesCount; ++i)
+            (modes + i)->~uint8();
+        operator delete(modes);
+    }
+    
     return 0;
 }

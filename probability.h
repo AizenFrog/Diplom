@@ -57,6 +57,7 @@ namespace probability {
     inline double alpha[numberOfFlows] = { 0.1, 0.05 }; // ����������� �������� ������� � ����� i
     inline double c[numberOfFlows] = { 1.0, 1.0 }; // �����������, ��� � ����� �������� 1 ������
     inline double beta[numberOfFlows] = { 0.6, 0.65 }; // ����������� ���������� ������ �������
+    inline int modesValue[3][4]{ {6, 4, 10, 4}, {10, 4, 6, 4}, {8, 4, 8, 4} };
 
     double getP(const size_t curState, const size_t nextState, const uint8 flow);
 

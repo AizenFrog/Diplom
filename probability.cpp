@@ -806,11 +806,20 @@ State::State(const uint8 _p1, const uint8 _q1, const uint8 _p2, const uint8 _q2)
 
 State::~State() {}
 
-FirstS::FirstS() : State(6, 4, 10, 4) {}
+FirstS::FirstS() : State(probability::modesValue[0][0],
+                         probability::modesValue[0][1],
+                         probability::modesValue[0][2],
+                         probability::modesValue[0][3]) {}
 
-SecondS::SecondS() : State(10, 4, 6, 4) {}
+SecondS::SecondS() : State(probability::modesValue[1][0],
+                           probability::modesValue[1][1],
+                           probability::modesValue[1][2],
+                           probability::modesValue[1][3]) {}
 
-ThirdS::ThirdS() : State(8, 4, 8, 4) {}
+ThirdS::ThirdS() : State(probability::modesValue[2][0],
+                         probability::modesValue[2][1],
+                         probability::modesValue[2][2],
+                         probability::modesValue[2][3]) {}
 
 void LinearSolver(const double* Acopy, const double* b, double* x, const size_t size) {
     cudaStat1 = cudaMemcpy(d_A, Acopy, sizeof(double) * size * size, cudaMemcpyHostToDevice);
