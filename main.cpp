@@ -36,13 +36,13 @@ std::pair<double, double> computeProbabilitys(const double alpha, const double c
     double expectedValue = alpha * c * 1.0 + alpha * (1.0 - c) * 2.0;
     double resAlpha = -1.0, resC = -1.0;
     if (c >= 0.5) {
-        double newAlpha = alpha - 0.01;
+        double newAlpha = alpha - 0.001;
         int iterCount = 1;
-        for (; newAlpha > 0.0; newAlpha -= 0.01) {
-            double newC = c - 0.01;
-            for (; newC > 0.0; newC -= 0.01) {
+        for (; newAlpha > 0.0; newAlpha -= 0.001) {
+            double newC = c - 0.001;
+            for (; newC > 0.0; newC -= 0.001) {
                 double newExpectedValue = newAlpha * newC * 1.0 + newAlpha * (1.0 - newC) * 2.0;
-                if (std::abs(newExpectedValue - expectedValue) <= 0.0001) {
+                if (std::abs(newExpectedValue - expectedValue) <= 0.000001) {
                     resAlpha = newAlpha;
                     resC = newC;
                     //break;
@@ -53,11 +53,11 @@ std::pair<double, double> computeProbabilitys(const double alpha, const double c
             ++iterCount;
         }
     } else {
-        double newAlpha = alpha + 0.01;
+        double newAlpha = alpha + 0.001;
         int iterCount = 1;
-        for (; newAlpha < 1.0; newAlpha += 0.01) {
-            double newC = c + 0.01;
-            for (; newC > 1.0; newC += 0.01) {
+        for (; newAlpha < 1.0; newAlpha += 0.001) {
+            double newC = c + 0.001;
+            for (; newC < 1.0; newC += 0.001) {
                 double newExpectedValue = newAlpha * newC * 1.0 + newAlpha * (1.0 - newC) * 2.0;
                 if (std::abs(newExpectedValue - expectedValue) <= 0.0001) {
                     resAlpha = newAlpha;
@@ -355,6 +355,8 @@ int main(int argc, char** argv) {
         alpha[3] = params2.first;
         c[2] = params1.second;
         c[3] = params2.second;
+        std::cout << "Colculated new probability of client arrival: " << alpha[2] << "  " << alpha[3] << std::endl;
+        std::cout << "Colculated new probability that client comes alone: " << c[2] << "  " << c[3] << std::endl;
         probability::setSystemConstants(flowNumber, maxCars, alpha, probability::beta, c);
 
         uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
@@ -378,8 +380,8 @@ int main(int argc, char** argv) {
         std::cout << "alpha in flow 2: "; std::cin >> a[1];
         std::cout << "beta in flow 1: "; std::cin >> b[0];
         std::cout << "beta in flow 2: "; std::cin >> b[1];
-        std::cout << "c in flow 0: "; std::cin >> cc[0];
-        std::cout << "c in flow 1: "; std::cin >> cc[1];
+        std::cout << "c in flow 1: "; std::cin >> cc[0];
+        std::cout << "c in flow 2: "; std::cin >> cc[1];
         std::cout << "Do you want to change politics [y/n]: "; std::cin >> is_new_politics;
         if (is_new_politics == "y") {
             std::cout << "First policy: ";  std::cin >> probability::modesValue[0][0],
