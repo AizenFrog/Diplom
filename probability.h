@@ -69,7 +69,7 @@ namespace probability {
 
     class Flow {
     public:
-        Flow(uint8 flow);
+        Flow(uint8 flow, int flag);
         ~Flow();
         double* Powermatrix(double* const mat, const uint8 power) const;
         void PFormation();
@@ -94,6 +94,7 @@ namespace probability {
         double* G;
         double* H;
         uint8 flow;
+        int flowStructFlag;
         static State* st;
     };
 
@@ -112,7 +113,7 @@ namespace probability {
 
     bool SolutionImprovement(double** P, double** Z, double* u, uint8* d);
 
-    size_t HowardAlgorithm(uint8* const modes);
+    size_t HowardAlgorithm(uint8* const modes, int flowStructFlag);
 }
 
 template <class T>

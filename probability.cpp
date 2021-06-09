@@ -181,10 +181,12 @@ namespace probability {
 
 State* probability::Flow::st = new ThirdS;
 
-probability::Flow::Flow(uint8 flow) : P(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
-    Q(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]), flow(flow),
+probability::Flow::Flow(uint8 flow, int flag = 0) :
+    P(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
+    Q(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
     G(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
-    H(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]) {}
+    H(new double[(static_cast<size_t>(maxCarsInFlows[flow]) + 1) * (maxCarsInFlows[flow] + 1)]),
+    flow(flow), flowStructFlag(flag) {}
 
 probability::Flow::~Flow() {
     delete[] P;
@@ -226,35 +228,63 @@ double* probability::Flow::Powermatrix(double* const mat, const uint8 power) con
 }
 
 void probability::Flow::PFormation() {
-    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
-        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            P[(maxCarsInFlows[flow] + 1) * i + j] = getP(i, j, flow);
+    if (flowStructFlag == 0)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                P[(maxCarsInFlows[flow] + 1) * i + j] = getP(i, j, flow);
+            }
         }
-    }
+    else if (flowStructFlag == 1)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                P[(maxCarsInFlows[flow] + 1) * i + j] = getp(i, j, flow);
+            }
+        }
 }
 
 void probability::Flow::QFormation() {
-    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
-        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            Q[(maxCarsInFlows[flow] + 1) * i + j] = getQ(i, j, flow);
+    if (flowStructFlag == 0)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                Q[(maxCarsInFlows[flow] + 1) * i + j] = getQ(i, j, flow);
+            }
         }
-    }
+    else if (flowStructFlag == 1)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                Q[(maxCarsInFlows[flow] + 1) * i + j] = getq(i, j, flow);
+            }
+        }
 }
 
 void probability::Flow::GFormation() {
-    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
-        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            G[(maxCarsInFlows[flow] + 1) * i + j] = getG(i, j, flow);
+    if (flowStructFlag == 0)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                G[(maxCarsInFlows[flow] + 1) * i + j] = getG(i, j, flow);
+            }
         }
-    }
+    else if (flowStructFlag == 1)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                G[(maxCarsInFlows[flow] + 1) * i + j] = getg(i, j, flow);
+            }
+        }
 }
 
 void probability::Flow::HFormation() {
-    for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
-        for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
-            H[(maxCarsInFlows[flow] + 1) * i + j] = getH(i, j, flow);
+    if (flowStructFlag == 0)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                H[(maxCarsInFlows[flow] + 1) * i + j] = getH(i, j, flow);
+            }
         }
-    }
+    else if (flowStructFlag == 1)
+        for (size_t i = 0; i <= maxCarsInFlows[flow]; ++i) {
+            for (size_t j = 0; j <= maxCarsInFlows[flow]; ++j) {
+                H[(maxCarsInFlows[flow] + 1) * i + j] = geth(i, j, flow);
+            }
+        }
 }
 
 void probability::Flow::changeState(const size_t md) {
@@ -664,10 +694,10 @@ bool probability::SolutionImprovement(double** P, double** Z, double* u, uint8* 
     return change;
 }
 
-size_t probability::HowardAlgorithm(uint8* const modes) {
+size_t probability::HowardAlgorithm(uint8* const modes, int flowStructFlag) {
     Flow* allFlows = static_cast<Flow*>(operator new(sizeof(Flow) * (uint32_t)numberOfFlows * modeCount));
     for (size_t i = 0; i < (uint32_t)numberOfFlows * modeCount; ++i)
-        new(allFlows + i) Flow(i % 2);
+        new(allFlows + i) Flow(i % 2, flowStructFlag);
 
     double** trm = new double* [modeCount];
     double** Z   = new double* [modeCount];

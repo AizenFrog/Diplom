@@ -1,10 +1,88 @@
 #include "probability.h"
 #include <iostream>
 #include <fstream>
+#include <string>
+
+class HTMLoutput {
+public:
+    HTMLoutput() = delete;
+    HTMLoutput(const HTMLoutput&) = delete;
+    HTMLoutput& operator=(const HTMLoutput&) = delete;
+
+    HTMLoutput(const std::string& file_name) : file(file_name + ".html", std::ios_base::app) {
+        if (file.is_open() == false) {
+            std::cerr << "Output file is not open!" << std::endl;
+            return;
+        }
+    }
+
+    void InitFileStruct() {
+        file << "<!DOCTYPE html>\n"
+             << "<html>\n"
+             << "<head>\n"
+             <<    "\t<meta charset = \"UTF-8\">\n"
+             <<    "\t<title>Howard output</title>\n"
+             <<    "\t<style type=\"text/css\">\n"
+             <<        "\t\tth {background: #ccc;}\n"
+             <<        "\t\t.green {background: rgb(173, 255, 47);}\n"
+             <<        "\t\t.yellow {background: rgb(255, 255, 0);}\n"
+             <<        "\t\t.aqua {background: rgb(0, 255, 255);}\n"
+             <<    "\t</style>\n"
+             << "</head>\n"
+             << "<body>\n"
+             << "</body>\n"
+             << "</html>\n";
+    }
+
+    void SetBreak() {
+        file << "<br>" << std::endl;
+    }
+
+    void SetHeaderH3(const std::string& header) {
+        file << "\t<h3><b>" << header << "</b></h3>\n";
+    }
+
+    void SetLine() {
+        file << "\t<hr>\n";
+    }
+
+    void SetMatrix(const uint8* modes, const size_t size) {
+
+        file << "<table border=\"1\">\n"
+             << "\t<tr>\n"
+             << "\t\t<th>2\\1</th>\n";
+        for (size_t i = 0; i < size; ++i)
+            file << "\t\t<th>" << i << "</th>\n";
+        file << "\t</tr>\n";
+
+        for (size_t i = 0; i < size; ++i) {
+            file << "\t<tr>"
+                 << "<th>" << i << "</th>";
+            for (size_t j = 0; j < size; ++j)
+                if (static_cast<int>(modes[i * size + j]) == 0)
+                    file << "<td class=\"green\">" << static_cast<int>(modes[i * size + j]) << "</td>";
+                else if (static_cast<int>(modes[i * size + j]) == 1)
+                    file << "<td class=\"aqua\">" << static_cast<int>(modes[i * size + j]) << "</td>";
+                else if (static_cast<int>(modes[i * size + j]) == 2)
+                    file << "<td class=\"yellow\">" << static_cast<int>(modes[i * size + j]) << "</td>";
+            file << "</tr>\n";
+        }
+        file << "</table>\n";
+    }
+
+    ~HTMLoutput() {
+        file << "</body>\n"
+             << "</html>";
+        file.close();
+    }
+
+private:
+    std::ofstream file;
+};
 
 bool outputInFile(const uint8* modes, const size_t iterationCount, const size_t numberOfExperiment,
                   const int param, const double paramValue) {
-    std::ofstream file("programm_output.txt", std::ios_base::app);
+    std::ofstream file("programm_output.html", std::ios_base::app);
     if (file.is_open() == false) {
         return false;
     }
@@ -30,6 +108,23 @@ bool outputInFile(const uint8* modes, const size_t iterationCount, const size_t 
     file << "--------------------------------------------" << std::endl;
     file.close();
     return true;
+}
+
+void OutputInHTML(const std::string& file_name, const uint8* modes) {
+    HTMLoutput out(file_name);
+    out.InitFileStruct();
+    out.SetHeaderH3("lambda1 = " + std::to_string(probability::alpha[0]) + ", lambda2 = " + std::to_string(probability::alpha[1]) + '\n');
+    out.SetHeaderH3("beta1 = " + std::to_string(probability::beta[0]) + ", beta2 = " + std::to_string(probability::beta[1]) + '\n');
+    out.SetHeaderH3("c1 = " + std::to_string(probability::c[0]) + ", c2 = " + std::to_string(probability::c[1]) + '\n' + '\n');
+    out.SetHeaderH3("Politics:\n");
+    out.SetHeaderH3("1: " + std::to_string(probability::modesValue[0][0]) + "-" + std::to_string(probability::modesValue[0][1]) +
+                    "-" + std::to_string(probability::modesValue[0][2]) + "-" + std::to_string(probability::modesValue[0][3]) + "\n");
+    out.SetHeaderH3("2: " + std::to_string(probability::modesValue[1][0]) + "-" + std::to_string(probability::modesValue[1][1]) +
+                    "-" + std::to_string(probability::modesValue[1][2]) + "-" + std::to_string(probability::modesValue[1][3]) + "\n");
+    out.SetHeaderH3("3: " + std::to_string(probability::modesValue[2][0]) + "-" + std::to_string(probability::modesValue[2][1]) +
+                    "-" + std::to_string(probability::modesValue[2][2]) + "-" + std::to_string(probability::modesValue[2][3]) + "\n");
+    out.SetMatrix(modes, maxCarsInFlows[0] + 1);
+    out.SetLine();
 }
 
 std::pair<double, double> computeProbabilitys(const double alpha, const double c) {
@@ -71,6 +166,10 @@ std::pair<double, double> computeProbabilitys(const double alpha, const double c
         }
     }
     return std::pair<double, double>(resAlpha, resC);
+}
+
+double computeArrivalProbability(const double alpha, const double c) {
+    return alpha * c * 1.0 + alpha * (1.0 - c) * 2.0;
 }
 
 int main(int argc, char** argv) {
@@ -321,7 +420,7 @@ int main(int argc, char** argv) {
                 probability::setSystemConstants(2, maxCars, probability::alpha, probability::beta, a);
 
             uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
-            size_t iter_count = probability::HowardAlgorithm(modes);
+            size_t iter_count = probability::HowardAlgorithm(modes, 0);
             printMatrix(modes, maxCarsInFlows[0] + 1);
             for (size_t i = 0; i < statesCount; ++i) {
                 if (previousModes[i] != modes[i])
@@ -346,32 +445,38 @@ int main(int argc, char** argv) {
         delete[] previousModes;
     } else if (experimentType == "y") {
         double alpha[4];
+        double beta[2];
         double c[4];
         std::cout << "Write probability of client arrival: "; std::cin >> alpha[0], std::cin >> alpha[1];
+        std::cout << "Write probability that client will be served: "; std::cin >> beta[0], std::cin >> beta[1];
         std::cout << "Write probability that client comes alone: "; std::cin >> c[0], std::cin >> c[1];
-        auto params1 = computeProbabilitys(alpha[0], c[0]);
-        auto params2 = computeProbabilitys(alpha[1], c[1]);
-        alpha[2] = params1.first;
-        alpha[3] = params2.first;
-        c[2] = params1.second;
-        c[3] = params2.second;
+        //auto params1 = computeProbabilitys(alpha[0], c[0]);
+        //auto params2 = computeProbabilitys(alpha[1], c[1]);
+        double param1 = computeArrivalProbability(alpha[0], c[0]);
+        double param2 = computeArrivalProbability(alpha[1], c[1]);
+        alpha[2] = param1;// params1.first;
+        alpha[3] = param2;// params2.first;
+        c[2] = 1.0;//params1.second;
+        c[3] = 1.0;//params2.second;
         std::cout << "Colculated new probability of client arrival: " << alpha[2] << "  " << alpha[3] << std::endl;
         std::cout << "Colculated new probability that client comes alone: " << c[2] << "  " << c[3] << std::endl;
-        probability::setSystemConstants(flowNumber, maxCars, alpha, probability::beta, c);
+        probability::setSystemConstants(flowNumber, maxCars, alpha, beta, c);
 
         uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
-        size_t iter_count = probability::HowardAlgorithm(modes);
+        size_t iter_count = probability::HowardAlgorithm(modes, 0);
         printMatrix(modes, maxCarsInFlows[0] + 1);
         for (size_t i = 0; i < statesCount; ++i)
             (modes + i)->~uint8();
+        OutputInHTML("DifferentTypes", modes);
         operator delete(modes);
 
-        probability::setSystemConstants(flowNumber, maxCars, alpha + 2, probability::beta, c + 2);
+        probability::setSystemConstants(flowNumber, maxCars, alpha + 2, beta, c + 2);
         modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
-        iter_count = probability::HowardAlgorithm(modes);
+        iter_count = probability::HowardAlgorithm(modes, 1);
         printMatrix(modes, maxCarsInFlows[0] + 1);
         for (size_t i = 0; i < statesCount; ++i)
             (modes + i)->~uint8();
+        OutputInHTML("DifferentTypes", modes);
         operator delete(modes);
     } else if (experimentType == "custom") {
         double a[2]{}, b[2]{}, cc[2]{};
@@ -385,25 +490,26 @@ int main(int argc, char** argv) {
         std::cout << "Do you want to change politics [y/n]: "; std::cin >> is_new_politics;
         if (is_new_politics == "y") {
             std::cout << "First policy: ";  std::cin >> probability::modesValue[0][0],
-                std::cin >> probability::modesValue[0][1],
-                std::cin >> probability::modesValue[0][2],
-                std::cin >> probability::modesValue[0][3];
+                                            std::cin >> probability::modesValue[0][1],
+                                            std::cin >> probability::modesValue[0][2],
+                                            std::cin >> probability::modesValue[0][3];
             std::cout << "Second policy: "; std::cin >> probability::modesValue[1][0],
-                std::cin >> probability::modesValue[1][1],
-                std::cin >> probability::modesValue[1][2],
-                std::cin >> probability::modesValue[1][3];
+                                            std::cin >> probability::modesValue[1][1],
+                                            std::cin >> probability::modesValue[1][2],
+                                            std::cin >> probability::modesValue[1][3];
             std::cout << "Third policy: ";  std::cin >> probability::modesValue[2][0],
-                std::cin >> probability::modesValue[2][1],
-                std::cin >> probability::modesValue[2][2],
-                std::cin >> probability::modesValue[2][3];
+                                            std::cin >> probability::modesValue[2][1],
+                                            std::cin >> probability::modesValue[2][2],
+                                            std::cin >> probability::modesValue[2][3];
         }
         probability::setSystemConstants(2, maxCars, a, b, cc);
 
         uint8* modes = reinterpret_cast<uint8*>(operator new(sizeof(uint8) * statesCount));
-        probability::HowardAlgorithm(modes);
+        probability::HowardAlgorithm(modes, 0);
         printMatrix(modes, maxCarsInFlows[0] + 1);
         for (size_t i = 0; i < statesCount; ++i)
             (modes + i)->~uint8();
+        OutputInHTML("Output", modes);
         operator delete(modes);
     }
     
