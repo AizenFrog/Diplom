@@ -10,8 +10,8 @@
 typedef unsigned char uint8;
 
 constexpr uint8 numberOfFlows = 2;
-inline size_t maxCarsInFlows[numberOfFlows] = { 10, 10 }; // ������� ��������
-constexpr uint8 nomberOfStates = 2 * numberOfFlows; // ���������� ��������� �������������� ����������
+inline size_t maxCarsInFlows[numberOfFlows] = { 10, 10 };
+constexpr uint8 nomberOfStates = 2 * numberOfFlows;
 inline size_t statesCount = (maxCarsInFlows[0] + 1) * (maxCarsInFlows[1] + 1);
 constexpr uint8 modeCount = 3;
 
@@ -54,9 +54,9 @@ static void printMatrix(const T* mat, const size_t size);
 void printVector(const double* vec, const size_t size);
 
 namespace probability {
-    inline double alpha[numberOfFlows] = { 0.1, 0.05 }; // ����������� �������� ������� � ����� i
-    inline double c[numberOfFlows] = { 1.0, 1.0 }; // �����������, ��� � ����� �������� 1 ������
-    inline double beta[numberOfFlows] = { 0.6, 0.65 }; // ����������� ���������� ������ �������
+    inline double alpha[numberOfFlows] = { 0.1, 0.05 };
+    inline double c[numberOfFlows] = { 1.0, 1.0 };
+    inline double beta[numberOfFlows] = { 0.6, 0.65 };
     inline int modesValue[3][4]{ {6, 4, 10, 4}, {10, 4, 6, 4}, {8, 4, 8, 4} };
 
     double getP(const size_t curState, const size_t nextState, const uint8 flow);
@@ -133,12 +133,8 @@ void printMatrix(const T* mat, const size_t size) {
 
 template <>
 void printMatrix<uint8>(const uint8* mat, const size_t size) {
-    //std::cout << "  ";
-    //for (size_t i = 0; i < size; ++i)
-    //    std::cout << i << "  ";
     std::cout << std::endl;
     for (size_t i = 0; i < size; ++i) {
-        //std::cout << i << "  ";
         for (size_t j = 0; j < size; ++j)
             std::cout << static_cast<int>(mat[i * size + j]) << "  ";
         std::cout << std::endl;
